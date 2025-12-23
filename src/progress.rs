@@ -1,14 +1,13 @@
 use chrono::{DateTime, Utc};
-use color_eyre::Result;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-use crate::range_query::RangeMap;
+use crate::range_query::{CanCoalesce, RangeMap};
 
 /// Represents the start position of a range for comparison purposes.
 /// Used as a key in RangeQueryMap.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-pub(crate) struct InsideBookBibleReference {
+pub struct InsideBookBibleReference {
     chapter: u32,
     verse: u32,
 }
@@ -22,24 +21,25 @@ pub struct ReadingRecord {
     pub last_read: DateTime<Utc>,
 }
 
-impl ReadingRecord {
-    pub fn new() -> Self {
+impl Default for ReadingRecord {
+    fn default() -> Self {
         Self {
             read_count: 1,
             last_read: Utc::now(),
         }
     }
-
-    /// Increments the read count and updates the last read time.
-    pub fn mark_read(&mut self) {
-        self.read_count += 1;
-        self.last_read = Utc::now();
-    }
 }
 
-impl Default for ReadingRecord {
-    fn default() -> Self {
-        Self::new()
+impl CanCoalesce for ReadingRecord {
+    fn coalesce(&self, other: &Self) -> Option<Self> {
+        if self.read_count == other.read_count {
+            Some(ReadingRecord {
+                read_count: self.read_count,
+                last_read: self.last_read.max(other.last_read),
+            })
+        } else {
+            None
+        }
     }
 }
 
@@ -59,6 +59,37 @@ impl ReadingProgress {
         Self {
             books: HashMap::new(),
         }
+    }
+
+    pub fn mark_read(&mut self, book: String, reference: InsideBookBibleReference) {
+        let records: &mut RangeMap<InsideBookBibleReference, ReadingRecord> =
+            self.books.entry(book).or_insert_with(RangeMap::new);
+        records.insert_with(
+            reference..reference,
+            ReadingRecord::default(),
+            |old, new| ReadingRecord {
+                read_count: old.read_count + new.read_count,
+                last_read: new.last_read,
+            },
+        );
+    }
+
+    pub fn set_read_count(
+        &mut self,
+        book: String,
+        reference: InsideBookBibleReference,
+        read_count: u32,
+        last_read: Option<DateTime<Utc>>,
+    ) {
+        let records: &mut RangeMap<InsideBookBibleReference, ReadingRecord> =
+            self.books.entry(book).or_insert_with(RangeMap::new);
+        records.insert_replace(
+            reference..reference,
+            ReadingRecord {
+                read_count,
+                last_read: last_read.unwrap_or(Utc::now()),
+            },
+        );
     }
 }
 

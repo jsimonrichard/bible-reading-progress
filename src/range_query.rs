@@ -3,8 +3,20 @@ use std::{collections::BTreeMap, ops::RangeInclusive};
 
 use serde::{Deserialize, Serialize};
 
-pub trait RangeData {
-    fn merge(&self, other: &Self) -> Self;
+pub trait CanCoalesce {
+    fn coalesce(&self, other: &Self) -> Option<Self>
+    where
+        Self: Sized;
+}
+
+impl<T: Eq + Clone> CanCoalesce for T {
+    fn coalesce(&self, other: &Self) -> Option<Self> {
+        if self == other {
+            Some(self.clone())
+        } else {
+            None
+        }
+    }
 }
 
 /// A map of disjoint half-open ranges `Range<T>` and values V where
@@ -23,7 +35,7 @@ where
 impl<K, V> RangeMap<K, V>
 where
     K: Ord + Copy,
-    V: Clone + Eq,
+    V: Clone + CanCoalesce,
 {
     /// Create an empty set.
     pub fn new() -> Self {
@@ -70,10 +82,14 @@ where
         let mut start_cursor = range.start;
 
         if let Some((s, (e, v))) = self.map.range_mut(..range.start).next_back() {
-            if start_cursor == *e && *v == value {
-                start_cursor = *s;
+            if start_cursor == *e {
+                if let Some(v2) = v.coalesce(&value) {
+                    *v = v2;
+                    start_cursor = *s;
+                }
             } else if start_cursor < *e {
-                if *v == value {
+                if let Some(v2) = v.coalesce(&value) {
+                    *v = v2;
                     start_cursor = *s;
                 } else {
                     if range.end < *e {
@@ -88,32 +104,36 @@ where
             }
         }
 
+        let mut coalesced_value = value.clone();
+
         for (s, (e, v)) in self.map.range_mut(range.start..range.end) {
-            if *v == value {
+            if let Some(v2) = v.coalesce(&coalesced_value) {
+                coalesced_value = v2;
                 to_remove.push(s.clone());
                 continue;
             }
 
             if start_cursor < *s {
                 // no overlap here
-                to_insert.push((start_cursor, (s.clone(), value.clone())));
+                to_insert.push((start_cursor, (s.clone(), coalesced_value)));
+                coalesced_value = value.clone();
                 // no need to update start_cursor here
             }
             // conceptually, start_cursor == *s
             if *e <= range.end {
-                *v = merge(v, &value);
+                *v = merge(v, &coalesced_value);
                 start_cursor = *e;
             } else {
                 to_insert.push((range.end, (*e, v.clone())));
                 *e = range.end;
-                *v = merge(v, &value);
+                *v = merge(v, &coalesced_value);
                 start_cursor = range.end;
                 // this is the last loop
             }
         }
 
         if start_cursor < range.end {
-            to_insert.push((start_cursor, (range.end, value.clone())));
+            to_insert.push((start_cursor, (range.end, coalesced_value)));
         }
 
         for s in to_remove {
@@ -134,26 +154,29 @@ where
         let mut to_update = Vec::new();
         for (r, v) in self.range_biinclusive(range) {
             let Some((start, end, curr_value, count)) = cursor else {
-                cursor = Some((r.start, r.end, v, 1));
+                cursor = Some((r.start, r.end, v.clone(), 1));
                 continue;
             };
 
-            if r.start == end && v == curr_value {
-                to_remove.push(r.start.clone());
-                cursor = Some((start, r.end, v, count + 1));
-                continue;
+            if r.start == end {
+                if let Some(v2) = v.coalesce(&curr_value) {
+                    to_remove.push(r.start.clone());
+                    cursor = Some((start, r.end, v2, count + 1));
+                    continue;
+                }
             }
 
             if count > 1 {
-                to_update.push((start.clone(), end.clone()));
+                to_update.push((start.clone(), end.clone(), curr_value));
             }
 
-            cursor = Some((r.start, r.end, v, 1));
+            // Start a new range
+            cursor = Some((r.start, r.end, v.clone(), 1));
         }
 
-        if let Some((start, end, _, count)) = cursor {
+        if let Some((start, end, value, count)) = cursor {
             if count > 1 {
-                to_update.push((start.clone(), end.clone()));
+                to_update.push((start.clone(), end.clone(), value));
             }
         }
 
@@ -161,9 +184,10 @@ where
             self.map.remove(&s);
         }
 
-        for (s, e) in to_update {
-            if let Some((old_e, _)) = self.map.get_mut(&s) {
+        for (s, e, value) in to_update {
+            if let Some((old_e, old_value)) = self.map.get_mut(&s) {
                 *old_e = e;
+                *old_value = value;
             } else {
                 unreachable!()
             }
