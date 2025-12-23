@@ -1,11 +1,12 @@
-use std::{collections::HashMap, sync::OnceLock};
+use indexmap::IndexMap;
+use std::sync::OnceLock;
 
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BibleStructure {
-    pub ot: HashMap<String, Vec<u32>>,
-    pub nt: HashMap<String, Vec<u32>>,
+    pub ot: IndexMap<String, Vec<u32>>,
+    pub nt: IndexMap<String, Vec<u32>>,
 }
 
 const BIBLE_STRUCTURE_STR: &str = include_str!("../bible_structure.json");

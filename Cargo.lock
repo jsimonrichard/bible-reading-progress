@@ -61,10 +61,12 @@ dependencies = [
  "color-eyre",
  "crossterm",
  "fuzzy-matcher",
+ "indexmap",
  "ratatui",
  "serde",
  "serde_json",
  "serde_yaml",
+ "tui-tree-widget",
 ]
 
 [[package]]
@@ -363,6 +365,8 @@ checksum = "0ad4bb2b565bca0645f4d68c5c9af97fba094e9791da685bf83cb5f3ce74acf2"
 dependencies = [
  "equivalent",
  "hashbrown 0.16.1",
+ "serde",
+ "serde_core",
 ]
 
 [[package]]
@@ -831,6 +835,16 @@ dependencies = [
  "sharded-slab",
  "thread_local",
  "tracing-core",
+]
+
+[[package]]
+name = "tui-tree-widget"
+version = "0.23.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c14c4488e071617f5b5922222193cdf6725835e492c6229557af85d3c1a4e903"
+dependencies = [
+ "ratatui",
+ "unicode-width 0.2.0",
 ]
 
 [[package]]

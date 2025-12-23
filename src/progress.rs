@@ -1,44 +1,31 @@
-use chrono::{DateTime, Utc};
+use chrono::{NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-use crate::range_query::{CanCoalesce, RangeMap};
+use crate::range_query::RangeMap;
 
 /// Represents the start position of a range for comparison purposes.
 /// Used as a key in RangeQueryMap.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct InsideBookBibleReference {
-    chapter: u32,
-    verse: u32,
+    pub chapter: u32,
+    pub verse: u32,
 }
 
 /// Tracks reading statistics for a bible passage.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ReadingRecord {
     /// Number of times this passage has been read
     pub read_count: u32,
-    /// Most recent time this passage was read
-    pub last_read: DateTime<Utc>,
+    /// Most recent date this passage was read
+    pub last_read: NaiveDate,
 }
 
 impl Default for ReadingRecord {
     fn default() -> Self {
         Self {
             read_count: 1,
-            last_read: Utc::now(),
-        }
-    }
-}
-
-impl CanCoalesce for ReadingRecord {
-    fn coalesce(&self, other: &Self) -> Option<Self> {
-        if self.read_count == other.read_count {
-            Some(ReadingRecord {
-                read_count: self.read_count,
-                last_read: self.last_read.max(other.last_read),
-            })
-        } else {
-            None
+            last_read: Utc::now().date_naive(),
         }
     }
 }
@@ -64,8 +51,13 @@ impl ReadingProgress {
     pub fn mark_read(&mut self, book: String, reference: InsideBookBibleReference) {
         let records: &mut RangeMap<InsideBookBibleReference, ReadingRecord> =
             self.books.entry(book).or_insert_with(RangeMap::new);
+        // For a single verse, use exclusive end (verse + 1)
+        let next_reference = InsideBookBibleReference {
+            chapter: reference.chapter,
+            verse: reference.verse + 1,
+        };
         records.insert_with(
-            reference..reference,
+            reference..next_reference,
             ReadingRecord::default(),
             |old, new| ReadingRecord {
                 read_count: old.read_count + new.read_count,
@@ -79,7 +71,7 @@ impl ReadingProgress {
         book: String,
         reference: InsideBookBibleReference,
         read_count: u32,
-        last_read: Option<DateTime<Utc>>,
+        last_read: Option<NaiveDate>,
     ) {
         let records: &mut RangeMap<InsideBookBibleReference, ReadingRecord> =
             self.books.entry(book).or_insert_with(RangeMap::new);
@@ -87,7 +79,7 @@ impl ReadingProgress {
             reference..reference,
             ReadingRecord {
                 read_count,
-                last_read: last_read.unwrap_or(Utc::now()),
+                last_read: last_read.unwrap_or_else(|| Utc::now().date_naive()),
             },
         );
     }
