@@ -12,6 +12,7 @@ pub enum InputFocus {
     Book,
     Chapter,
     Verse,
+    VerseEnd,
 }
 
 pub struct RecordWidget {
@@ -20,8 +21,10 @@ pub struct RecordWidget {
     pub selected_book_index: usize,
     pub chapter_input: String,
     pub verse_input: String,
+    pub verse_end_input: String,
     pub error_message: Option<String>,
     pub input_focus: InputFocus,
+    pub show_confirmation: bool,
 }
 
 impl RecordWidget {
@@ -33,8 +36,10 @@ impl RecordWidget {
             selected_book_index: 0,
             chapter_input: String::new(),
             verse_input: String::new(),
+            verse_end_input: String::new(),
             error_message: None,
             input_focus: InputFocus::Book,
+            show_confirmation: false,
         }
     }
 
@@ -46,7 +51,7 @@ impl RecordWidget {
                 Constraint::Length(3), // Book search
                 Constraint::Length(8), // Book matches list
                 Constraint::Length(3), // Chapter input
-                Constraint::Length(3), // Verse input
+                Constraint::Length(3), // Verse input(s)
                 Constraint::Min(0),    // Error / help
                 Constraint::Length(3), // Footer
             ])
@@ -133,7 +138,7 @@ impl RecordWidget {
             .block(
                 Block::default()
                     .borders(Borders::ALL)
-                    .title("Chapter")
+                    .title("Chapter (e.g., 1, 1-5, or leave empty for entire book)")
                     .border_style(if self.input_focus == InputFocus::Chapter {
                         Style::default().fg(Color::Yellow)
                     } else {
@@ -142,27 +147,80 @@ impl RecordWidget {
             );
         frame.render_widget(chapter_widget, chunks[3]);
 
-        // Verse input field
-        let verse_style = if self.input_focus == InputFocus::Verse {
-            Style::default()
-                .fg(Color::Yellow)
-                .add_modifier(Modifier::BOLD)
+        // Verse input field(s) - show two columns if chapter range is detected
+        let has_chapter_range = self.chapter_input.contains('-');
+        if has_chapter_range {
+            let verse_chunks = Layout::default()
+                .direction(Direction::Horizontal)
+                .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
+                .split(chunks[4]);
+
+            // Start chapter verse input
+            let verse_style = if self.input_focus == InputFocus::Verse {
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD)
+            } else {
+                Style::default()
+            };
+            let verse_widget = Paragraph::new(self.verse_input.as_str())
+                .style(verse_style)
+                .block(
+                    Block::default()
+                        .borders(Borders::ALL)
+                        .title("Start Chapter Verses (e.g., 1, 1-5, or leave empty)")
+                        .border_style(if self.input_focus == InputFocus::Verse {
+                            Style::default().fg(Color::Yellow)
+                        } else {
+                            Style::default()
+                        }),
+                );
+            frame.render_widget(verse_widget, verse_chunks[0]);
+
+            // End chapter verse input
+            let verse_end_style = if self.input_focus == InputFocus::VerseEnd {
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD)
+            } else {
+                Style::default()
+            };
+            let verse_end_widget = Paragraph::new(self.verse_end_input.as_str())
+                .style(verse_end_style)
+                .block(
+                    Block::default()
+                        .borders(Borders::ALL)
+                        .title("End Chapter Verses (e.g., 1, 1-5, or leave empty)")
+                        .border_style(if self.input_focus == InputFocus::VerseEnd {
+                            Style::default().fg(Color::Yellow)
+                        } else {
+                            Style::default()
+                        }),
+                );
+            frame.render_widget(verse_end_widget, verse_chunks[1]);
         } else {
-            Style::default()
-        };
-        let verse_widget = Paragraph::new(self.verse_input.as_str())
-            .style(verse_style)
-            .block(
-                Block::default()
-                    .borders(Borders::ALL)
-                    .title("Verse (e.g., 1, 1-5, or leave empty for full chapter)")
-                    .border_style(if self.input_focus == InputFocus::Verse {
-                        Style::default().fg(Color::Yellow)
-                    } else {
-                        Style::default()
-                    }),
-            );
-        frame.render_widget(verse_widget, chunks[4]);
+            // Single verse input field
+            let verse_style = if self.input_focus == InputFocus::Verse {
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD)
+            } else {
+                Style::default()
+            };
+            let verse_widget = Paragraph::new(self.verse_input.as_str())
+                .style(verse_style)
+                .block(
+                    Block::default()
+                        .borders(Borders::ALL)
+                        .title("Verse (e.g., 1, 1-5, or leave empty for full chapter)")
+                        .border_style(if self.input_focus == InputFocus::Verse {
+                            Style::default().fg(Color::Yellow)
+                        } else {
+                            Style::default()
+                        }),
+                );
+            frame.render_widget(verse_widget, chunks[4]);
+        }
 
         // Error message or help
         if let Some(error) = &self.error_message {
@@ -171,7 +229,16 @@ impl RecordWidget {
                 .block(Block::default().borders(Borders::ALL).title("Error"));
             frame.render_widget(error_widget, chunks[5]);
         } else {
-            let help = Paragraph::new("Enter a verse number (e.g., 1), a range (e.g., 1-5), or leave empty for the full chapter")
+            let has_chapter_range = self.chapter_input.contains('-');
+            let chapter_empty = self.chapter_input.trim().is_empty();
+            let help_text = if chapter_empty {
+                "Leave chapter empty to mark entire book as read (confirmation required)"
+            } else if has_chapter_range {
+                "Chapter range detected: Enter verses for start and end chapters. Middle chapters will be fully read."
+            } else {
+                "Enter a verse number (e.g., 1), a range (e.g., 1-5), or leave empty for the full chapter"
+            };
+            let help = Paragraph::new(help_text)
                 .style(Style::default().fg(Color::Gray))
                 .block(Block::default().borders(Borders::ALL).title("Help"));
             frame.render_widget(help, chunks[5]);
@@ -185,6 +252,60 @@ impl RecordWidget {
         .alignment(Alignment::Center)
         .block(Block::default().borders(Borders::ALL));
         frame.render_widget(footer, chunks[6]);
+
+        // Show confirmation popup if needed
+        if self.show_confirmation {
+            let popup_area = Self::centered_rect(60, 25, frame.area());
+            frame.render_widget(Clear, popup_area);
+            frame.render_widget(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .border_style(Style::default().fg(Color::Yellow))
+                    .title("Confirm"),
+                popup_area,
+            );
+
+            let popup_chunks = Layout::default()
+                .direction(Direction::Vertical)
+                .constraints([
+                    Constraint::Length(3),
+                    Constraint::Length(3),
+                    Constraint::Length(3),
+                ])
+                .margin(1)
+                .split(popup_area);
+
+            let message = Paragraph::new("Are you sure you want to mark the entire book as read?")
+                .style(Style::default().fg(Color::Yellow))
+                .alignment(Alignment::Center)
+                .wrap(Wrap { trim: true });
+            frame.render_widget(message, popup_chunks[0]);
+
+            let instruction = Paragraph::new("Press Enter to confirm, Esc to cancel")
+                .style(Style::default().fg(Color::Gray))
+                .alignment(Alignment::Center);
+            frame.render_widget(instruction, popup_chunks[1]);
+        }
+    }
+
+    fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
+        let popup_layout = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Percentage((100 - percent_y) / 2),
+                Constraint::Percentage(percent_y),
+                Constraint::Percentage((100 - percent_y) / 2),
+            ])
+            .split(r);
+
+        Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([
+                Constraint::Percentage((100 - percent_x) / 2),
+                Constraint::Percentage(percent_x),
+                Constraint::Percentage((100 - percent_x) / 2),
+            ])
+            .split(popup_layout[1])[1]
     }
 
     pub fn handle_key(
@@ -192,58 +313,12 @@ impl RecordWidget {
         key: KeyEvent,
         bible: &'static crate::bible_structure::BibleStructure,
     ) -> Result<RecordAction> {
-        match (key.modifiers, key.code) {
-            (_, KeyCode::Esc) => Ok(RecordAction::Cancel),
-            (_, KeyCode::Tab) => {
-                // Navigate forward through input fields
-                self.input_focus = match self.input_focus {
-                    InputFocus::Book => InputFocus::Chapter,
-                    InputFocus::Chapter => InputFocus::Verse,
-                    InputFocus::Verse => InputFocus::Book,
-                };
-                self.error_message = None;
-                Ok(RecordAction::None)
-            }
-            (_, KeyCode::BackTab) => {
-                // Navigate backward through input fields
-                self.input_focus = match self.input_focus {
-                    InputFocus::Book => InputFocus::Verse,
-                    InputFocus::Chapter => InputFocus::Book,
-                    InputFocus::Verse => InputFocus::Chapter,
-                };
-                self.error_message = None;
-                Ok(RecordAction::None)
-            }
-            (_, KeyCode::Up) if self.input_focus == InputFocus::Book => {
-                if self.selected_book_index > 0 {
-                    self.selected_book_index -= 1;
-                }
-                Ok(RecordAction::None)
-            }
-            (_, KeyCode::Down) if self.input_focus == InputFocus::Book => {
-                if self.selected_book_index < self.book_matches.len().saturating_sub(1) {
-                    self.selected_book_index += 1;
-                }
-                Ok(RecordAction::None)
-            }
-            (_, KeyCode::Enter) => {
-                if self.input_focus == InputFocus::Book {
-                    // Select the book and move to chapter
-                    if !self.book_matches.is_empty() {
-                        let selected_book = self.book_matches[self.selected_book_index].clone();
-                        self.book_search = selected_book.clone();
-                        self.input_focus = InputFocus::Chapter;
-                        let search_query = self.book_search.clone();
-                        let new_matches = Self::compute_book_matches(bible, &search_query);
-                        self.book_matches = new_matches;
-                    }
-                    Ok(RecordAction::None)
-                } else if self.input_focus == InputFocus::Chapter {
-                    // Move to verse input
-                    self.input_focus = InputFocus::Verse;
-                    Ok(RecordAction::None)
-                } else {
-                    // Add the reading
+        // Handle confirmation popup
+        if self.show_confirmation {
+            match key.code {
+                KeyCode::Enter => {
+                    self.show_confirmation = false;
+                    // Proceed with adding reading (chapter is empty, so entire book)
                     if self.book_matches.is_empty() {
                         self.error_message = Some("Please select a book first".to_string());
                         Ok(RecordAction::None)
@@ -251,50 +326,169 @@ impl RecordWidget {
                         Ok(RecordAction::AddReading)
                     }
                 }
-            }
-            (_, KeyCode::Backspace) => {
-                match self.input_focus {
-                    InputFocus::Book => {
-                        self.book_search.pop();
-                        self.selected_book_index = 0;
-                        let search_query = self.book_search.clone();
-                        let new_matches = Self::compute_book_matches(bible, &search_query);
-                        self.book_matches = new_matches;
-                    }
-                    InputFocus::Chapter => {
-                        self.chapter_input.pop();
-                    }
-                    InputFocus::Verse => {
-                        self.verse_input.pop();
-                    }
+                KeyCode::Esc => {
+                    self.show_confirmation = false;
+                    Ok(RecordAction::None)
                 }
-                self.error_message = None;
-                Ok(RecordAction::None)
+                _ => Ok(RecordAction::None),
             }
-            (_, KeyCode::Char(c)) if c.is_ascii() && !c.is_control() => {
-                match self.input_focus {
-                    InputFocus::Book => {
-                        self.book_search.push(c);
-                        self.selected_book_index = 0;
-                        let search_query = self.book_search.clone();
-                        let new_matches = Self::compute_book_matches(bible, &search_query);
-                        self.book_matches = new_matches;
+        } else {
+            match (key.modifiers, key.code) {
+                (_, KeyCode::Esc) => Ok(RecordAction::Cancel),
+                (_, KeyCode::Tab) => {
+                    // Navigate forward through input fields
+                    let has_chapter_range = self.chapter_input.contains('-');
+                    self.input_focus = match self.input_focus {
+                        InputFocus::Book => InputFocus::Chapter,
+                        InputFocus::Chapter => InputFocus::Verse,
+                        InputFocus::Verse => {
+                            if has_chapter_range {
+                                InputFocus::VerseEnd
+                            } else {
+                                InputFocus::Book
+                            }
+                        }
+                        InputFocus::VerseEnd => InputFocus::Book,
+                    };
+                    self.error_message = None;
+                    Ok(RecordAction::None)
+                }
+                (_, KeyCode::BackTab) => {
+                    // Navigate backward through input fields
+                    let has_chapter_range = self.chapter_input.contains('-');
+                    self.input_focus = match self.input_focus {
+                        InputFocus::Book => {
+                            if has_chapter_range {
+                                InputFocus::VerseEnd
+                            } else {
+                                InputFocus::Verse
+                            }
+                        }
+                        InputFocus::Chapter => InputFocus::Book,
+                        InputFocus::Verse => InputFocus::Chapter,
+                        InputFocus::VerseEnd => InputFocus::Verse,
+                    };
+                    self.error_message = None;
+                    Ok(RecordAction::None)
+                }
+                (_, KeyCode::Up) if self.input_focus == InputFocus::Book => {
+                    if self.selected_book_index > 0 {
+                        self.selected_book_index -= 1;
                     }
-                    InputFocus::Chapter => {
-                        if c.is_ascii_digit() {
-                            self.chapter_input.push(c);
+                    Ok(RecordAction::None)
+                }
+                (_, KeyCode::Down) if self.input_focus == InputFocus::Book => {
+                    if self.selected_book_index < self.book_matches.len().saturating_sub(1) {
+                        self.selected_book_index += 1;
+                    }
+                    Ok(RecordAction::None)
+                }
+                (_, KeyCode::Enter) => {
+                    if self.input_focus == InputFocus::Book {
+                        // Select the book and move to chapter
+                        if !self.book_matches.is_empty() {
+                            let selected_book = self.book_matches[self.selected_book_index].clone();
+                            self.book_search = selected_book.clone();
+                            self.input_focus = InputFocus::Chapter;
+                            let search_query = self.book_search.clone();
+                            let new_matches = Self::compute_book_matches(bible, &search_query);
+                            self.book_matches = new_matches;
+                        }
+                        Ok(RecordAction::None)
+                    } else if self.input_focus == InputFocus::Chapter {
+                        // Move to verse input
+                        self.input_focus = InputFocus::Verse;
+                        Ok(RecordAction::None)
+                    } else if self.input_focus == InputFocus::Verse {
+                        // If chapter range, move to verse end, otherwise add reading
+                        let has_chapter_range = self.chapter_input.contains('-');
+                        if has_chapter_range {
+                            self.input_focus = InputFocus::VerseEnd;
+                            Ok(RecordAction::None)
+                        } else {
+                            // Check if chapter is empty - show confirmation if so
+                            if self.chapter_input.trim().is_empty() {
+                                self.show_confirmation = true;
+                                Ok(RecordAction::None)
+                            } else {
+                                // Add the reading
+                                if self.book_matches.is_empty() {
+                                    self.error_message =
+                                        Some("Please select a book first".to_string());
+                                    Ok(RecordAction::None)
+                                } else {
+                                    Ok(RecordAction::AddReading)
+                                }
+                            }
+                        }
+                    } else {
+                        // Add the reading (from VerseEnd field)
+                        // Check if chapter is empty - show confirmation if so
+                        if self.chapter_input.trim().is_empty() {
+                            self.show_confirmation = true;
+                            Ok(RecordAction::None)
+                        } else {
+                            if self.book_matches.is_empty() {
+                                self.error_message = Some("Please select a book first".to_string());
+                                Ok(RecordAction::None)
+                            } else {
+                                Ok(RecordAction::AddReading)
+                            }
                         }
                     }
-                    InputFocus::Verse => {
-                        if c.is_ascii_digit() || c == '-' || c == ',' {
-                            self.verse_input.push(c);
+                }
+                (_, KeyCode::Backspace) => {
+                    match self.input_focus {
+                        InputFocus::Book => {
+                            self.book_search.pop();
+                            self.selected_book_index = 0;
+                            let search_query = self.book_search.clone();
+                            let new_matches = Self::compute_book_matches(bible, &search_query);
+                            self.book_matches = new_matches;
+                        }
+                        InputFocus::Chapter => {
+                            self.chapter_input.pop();
+                        }
+                        InputFocus::Verse => {
+                            self.verse_input.pop();
+                        }
+                        InputFocus::VerseEnd => {
+                            self.verse_end_input.pop();
                         }
                     }
+                    self.error_message = None;
+                    Ok(RecordAction::None)
                 }
-                self.error_message = None;
-                Ok(RecordAction::None)
+                (_, KeyCode::Char(c)) if c.is_ascii() && !c.is_control() => {
+                    match self.input_focus {
+                        InputFocus::Book => {
+                            self.book_search.push(c);
+                            self.selected_book_index = 0;
+                            let search_query = self.book_search.clone();
+                            let new_matches = Self::compute_book_matches(bible, &search_query);
+                            self.book_matches = new_matches;
+                        }
+                        InputFocus::Chapter => {
+                            if c.is_ascii_digit() || c == '-' {
+                                self.chapter_input.push(c);
+                            }
+                        }
+                        InputFocus::Verse => {
+                            if c.is_ascii_digit() || c == '-' || c == ',' {
+                                self.verse_input.push(c);
+                            }
+                        }
+                        InputFocus::VerseEnd => {
+                            if c.is_ascii_digit() || c == '-' || c == ',' {
+                                self.verse_end_input.push(c);
+                            }
+                        }
+                    }
+                    self.error_message = None;
+                    Ok(RecordAction::None)
+                }
+                _ => Ok(RecordAction::None),
             }
-            _ => Ok(RecordAction::None),
         }
     }
 
@@ -310,12 +504,7 @@ impl RecordWidget {
         let selected_book = self.book_matches[self.selected_book_index].clone();
         let chapter_str = self.chapter_input.clone();
         let verse_str = self.verse_input.clone();
-
-        // Parse chapter
-        let chapter = chapter_str
-            .trim()
-            .parse::<u32>()
-            .map_err(|_| format!("Invalid chapter: {}", chapter_str))?;
+        let verse_end_str = self.verse_end_input.clone();
 
         // Get chapters for this book
         let chapters = bible
@@ -324,38 +513,125 @@ impl RecordWidget {
             .or_else(|| bible.nt.get(&selected_book))
             .ok_or_else(|| format!("Book '{}' not found", selected_book))?;
 
-        if chapter == 0 || chapter > chapters.len() as u32 {
-            return Err(format!(
-                "Chapter {} doesn't exist (max: {})",
-                chapter,
-                chapters.len()
-            ));
+        // Handle empty chapter input (entire book)
+        if chapter_str.trim().is_empty() {
+            // Mark entire book as read
+            for (chapter_idx, &max_verse) in chapters.iter().enumerate() {
+                let chapter = (chapter_idx + 1) as u32;
+                for verse in 1..=max_verse {
+                    progress.mark_read(
+                        selected_book.clone(),
+                        InsideBookBibleReference { chapter, verse },
+                    );
+                }
+            }
+
+            // Clear inputs and reset
+            self.chapter_input = String::new();
+            self.verse_input = String::new();
+            self.verse_end_input = String::new();
+            self.error_message = None;
+            self.show_confirmation = false;
+            self.input_focus = InputFocus::Chapter;
+
+            return Ok(());
         }
 
-        let max_verse = chapters[chapter as usize - 1];
+        // Parse chapter(s) - handle ranges
+        let (chapter_start, chapter_end) = if chapter_str.contains('-') {
+            let parts: Vec<&str> = chapter_str.split('-').collect();
+            if parts.len() != 2 {
+                return Err(format!("Invalid chapter range format: {}", chapter_str));
+            }
+            let start = parts[0]
+                .trim()
+                .parse::<u32>()
+                .map_err(|_| format!("Invalid chapter number: {}", parts[0]))?;
+            let end = parts[1]
+                .trim()
+                .parse::<u32>()
+                .map_err(|_| format!("Invalid chapter number: {}", parts[1]))?;
 
-        // Parse verses
-        let verse_ranges = if verse_str.trim().is_empty() {
-            // Full chapter
-            vec![(1, max_verse)]
+            if start == 0 || start > chapters.len() as u32 {
+                return Err(format!(
+                    "Start chapter {} doesn't exist (max: {})",
+                    start,
+                    chapters.len()
+                ));
+            }
+            if end == 0 || end > chapters.len() as u32 {
+                return Err(format!(
+                    "End chapter {} doesn't exist (max: {})",
+                    end,
+                    chapters.len()
+                ));
+            }
+            if start > end {
+                return Err(format!(
+                    "Start chapter ({}) must be <= end chapter ({})",
+                    start, end
+                ));
+            }
+
+            (start, end)
         } else {
-            parse_verse_ranges(&verse_str, max_verse)?
+            let chapter = chapter_str
+                .trim()
+                .parse::<u32>()
+                .map_err(|_| format!("Invalid chapter: {}", chapter_str))?;
+
+            if chapter == 0 || chapter > chapters.len() as u32 {
+                return Err(format!(
+                    "Chapter {} doesn't exist (max: {})",
+                    chapter,
+                    chapters.len()
+                ));
+            }
+
+            (chapter, chapter)
         };
 
-        // Mark each verse as read
-        for (verse_start, verse_end) in verse_ranges {
-            for verse in verse_start..=verse_end {
-                progress.mark_read(
-                    selected_book.clone(),
-                    InsideBookBibleReference { chapter, verse },
-                );
+        // Process each chapter in the range
+        for chapter in chapter_start..=chapter_end {
+            let max_verse = chapters[chapter as usize - 1];
+
+            // Determine which verse input to use
+            let verse_input = if chapter == chapter_start {
+                // Use start chapter verse input
+                &verse_str
+            } else if chapter == chapter_end && chapter_start != chapter_end {
+                // Use end chapter verse input
+                &verse_end_str
+            } else {
+                // Middle chapters: use empty (full chapter)
+                ""
+            };
+
+            // Parse verses
+            let verse_ranges = if verse_input.trim().is_empty() {
+                // Full chapter
+                vec![(1, max_verse)]
+            } else {
+                parse_verse_ranges(verse_input, max_verse)?
+            };
+
+            // Mark each verse as read
+            for (verse_start, verse_end) in verse_ranges {
+                for verse in verse_start..=verse_end {
+                    progress.mark_read(
+                        selected_book.clone(),
+                        InsideBookBibleReference { chapter, verse },
+                    );
+                }
             }
         }
 
         // Clear inputs and reset
         self.chapter_input = String::new();
         self.verse_input = String::new();
+        self.verse_end_input = String::new();
         self.error_message = None;
+        self.show_confirmation = false;
         self.input_focus = InputFocus::Chapter;
 
         Ok(())
