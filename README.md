@@ -22,8 +22,11 @@ The application starts in **Dashboard mode** by default, showing all your readin
 ### Dashboard Mode
 
 - **↑/↓**: Navigate through passages
-- **Enter**: Expand/collapse a passage to see details
+- **Space/→/Enter**: Expand/collapse a passage to see details
+- **←**: Collapse a passage
 - **r**: Switch to Record mode
+- **m**: Switch to Manual Add mode
+- **u**: Toggle showing only unread passages
 - **q/Esc**: Quit
 
 The dashboard displays:
@@ -33,15 +36,28 @@ The dashboard displays:
 
 ### Record Mode
 
-Press **r** from the dashboard to record what you read today.
+Press **r** from the dashboard to record what you read today. This mode automatically saves and returns to the dashboard after adding a reading.
 
-- **←/→**: Navigate between books
-- **Shift+←/→**: Navigate between chapters
-- **Type**: Enter verse ranges (e.g., `1-10` or `1-5,10-15`)
-- **Enter**: Add the current passage
-- **a**: Clear input to add another passage
-- **s**: Save all passages and return to dashboard
+The record widget has multiple input fields that you navigate between:
+
+- **Tab**: Move to the next field
+- **Shift+Tab**: Move to the previous field
+- **↑/↓**: When in the Book field, navigate through book matches
+- **Type**: Enter text in the current field
+  - **Book field**: Type to search for a book (fuzzy matching)
+  - **Chapter field**: Enter chapter number (e.g., `1`, `1-5` for range, or leave empty for entire book)
+  - **Verse field**: Enter verse ranges (e.g., `1-10` or `1-5,10-15`, or leave empty for full chapter)
+- **Enter**: 
+  - In Book field: Select the book and move to Chapter field
+  - In Chapter field: Move to Verse field
+  - In Verse field: Add the reading (saves automatically and returns to dashboard)
 - **Esc**: Cancel and return to dashboard
+
+**Features:**
+- Supports chapter ranges (e.g., `1-5` in Chapter field) - when a range is detected, you can specify verses for the start and end chapters separately
+- Supports verse ranges within chapters (e.g., `1-10` or `1-5,10-15`)
+- Leave chapter empty to mark entire book as read (requires confirmation)
+- Leave verse empty to mark entire chapter as read
 
 Verse range examples:
 - `1-10` for verses 1 through 10
@@ -49,20 +65,29 @@ Verse range examples:
 - `1` for just verse 1
 - (empty) for the entire chapter
 
+### Manual Add Mode
+
+Press **m** from the dashboard to manually add readings with custom read counts and dates. This mode works similarly to Record mode but includes additional fields:
+
+- **Read Count field**: Enter how many times you've read the passage (defaults to 1)
+- **Date field**: Enter the date in YYYY-MM-DD format (defaults to today)
+
+This mode overwrites any existing readings for overlapping verse ranges.
+
 ## Data Storage
 
-Your reading progress is stored in `reading_progress.yaml` in the project directory. The format is human-readable and version-control friendly:
+Your reading progress is stored in `reading_progress.yaml` in the project directory. The format is human-readable-ish and version-control friendly:
 
 ```yaml
-readings:
-  - date: "2024-01-15"
-    passages:
-      - book: "Genesis"
-        chapter: 1
-        verses: "1-10"
-      - book: "Genesis"
-        chapter: 2
-        verses: "1"  # full chapter
+books:
+  Psalms:
+    map:
+      ? chapter: 1 # start
+        verse: 1
+      : - chapter: 1 # end
+          verse: 7
+        - read_count: 1
+          last_read: 2025-12-24
 ```
 
 ## Building
@@ -71,7 +96,7 @@ readings:
 cargo build --release
 ```
 
-The binary will be in `target/release/bible-reading-progress`.
+The binary will be in `target/release/brp`.
 
 ## License
 
