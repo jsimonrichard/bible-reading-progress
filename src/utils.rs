@@ -4,9 +4,7 @@ use color_eyre::Result;
 use std::fs;
 use std::path::PathBuf;
 
-pub fn get_all_books(
-    bible: &crate::bible_structure::BibleStructure,
-) -> Vec<String> {
+pub fn get_all_books(bible: &crate::bible_structure::BibleStructure) -> Vec<String> {
     let mut books: Vec<String> = Vec::new();
     books.extend(bible.ot.keys().cloned());
     books.extend(bible.nt.keys().cloned());
@@ -79,4 +77,3 @@ pub fn save_progress(progress: &ReadingProgress, config: &Config) -> Result<()> 
     fs::write(&path, content)?;
     Ok(())
 }
-
