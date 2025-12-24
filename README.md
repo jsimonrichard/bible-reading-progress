@@ -6,20 +6,21 @@ A command-line tool to track your Bible reading progress with a YAML-based backe
 
 - **Record Mode**: Interactive interface to record what you read today, supporting sub-chapter ranges
 - **Dashboard Mode**: View statistics showing how many times you've read each passage and when you last read it
-- **YAML Storage**: All data is stored in readable, diffable YAML format
-- **Sub-chapter Ranges**: Support for recording specific verse ranges (e.g., "1-10" or "1-5,10-15")
+- **YAML Storage**: All data is stored in readable(ish), diffable YAML format
+- **Sub-chapter Ranges**: Support for recording specific verse ranges (e.g., "1-10")
 
 ## Usage
 
-Simply run the application:
+Install the client:
 
-```bash
-cargo run
-```
-
-To install:
 ```bash
 cargo install --path .
+```
+
+Run:
+
+```bash
+brp
 ```
 
 The application starts in **Dashboard mode** by default, showing all your reading progress.
@@ -31,7 +32,6 @@ The application starts in **Dashboard mode** by default, showing all your readin
 - **←**: Collapse a passage
 - **r**: Switch to Record mode
 - **m**: Switch to Manual Add mode
-- **u**: Toggle showing only unread passages
 - **q/Esc**: Quit
 
 The dashboard displays:
@@ -51,24 +51,12 @@ The record widget has multiple input fields that you navigate between:
 - **Type**: Enter text in the current field
   - **Book field**: Type to search for a book (fuzzy matching)
   - **Chapter field**: Enter chapter number (e.g., `1`, `1-5` for range, or leave empty for entire book)
-  - **Verse field**: Enter verse ranges (e.g., `1-10` or `1-5,10-15`, or leave empty for full chapter)
+  - **Verse field**: Enter verse ranges (e.g., `1-10`, or leave empty for full chapter)
 - **Enter**: 
   - In Book field: Select the book and move to Chapter field
   - In Chapter field: Move to Verse field
   - In Verse field: Add the reading (saves automatically and returns to dashboard)
 - **Esc**: Cancel and return to dashboard
-
-**Features:**
-- Supports chapter ranges (e.g., `1-5` in Chapter field) - when a range is detected, you can specify verses for the start and end chapters separately
-- Supports verse ranges within chapters (e.g., `1-10` or `1-5,10-15`)
-- Leave chapter empty to mark entire book as read (requires confirmation)
-- Leave verse empty to mark entire chapter as read
-
-Verse range examples:
-- `1-10` for verses 1 through 10
-- `1-5,10-15` for verses 1-5 and 10-15
-- `1` for just verse 1
-- (empty) for the entire chapter
 
 ### Manual Add Mode
 
@@ -81,7 +69,7 @@ This mode overwrites any existing readings for overlapping verse ranges.
 
 ## Data Storage
 
-Your reading progress is stored in `reading_progress.yaml` in the project directory. The format is human-readable-ish and version-control friendly:
+Your reading progress is stored in `.local/share/bible-reading-progress.yaml`, or the equivalent. The format is human-readable-ish and version-control friendly:
 
 ```yaml
 books:
