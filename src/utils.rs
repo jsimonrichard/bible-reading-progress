@@ -71,6 +71,10 @@ pub fn load_progress(config: &Config) -> Result<ReadingProgress> {
 
 pub fn save_progress(progress: &ReadingProgress, config: &Config) -> Result<()> {
     let path = get_progress_file_path(config);
+    // Ensure parent directory exists
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)?;
+    }
     let content = serde_yaml::to_string(progress)?;
     fs::write(&path, content)?;
     Ok(())

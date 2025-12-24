@@ -17,6 +17,11 @@ indexmap = { version = "2.0", features = ["serde"] }
 chrono = { version = "0.4", features = ["serde"] }
 fuzzy-matcher = "0.3"
 tui-tree-widget = "0.23.1"
+dirs = "5.0"
+
+[[bin]]
+name = "brp"
+path = "src/main.rs"
 
 # Read the optimization guideline for more details: https://ratatui.rs/recipes/apps/release-your-app/#optimizations
 [profile.release]
