@@ -18,6 +18,7 @@ chrono = { version = "0.4", features = ["serde"] }
 fuzzy-matcher = "0.3"
 tui-tree-widget = "0.23.1"
 dirs = "5.0"
+clap = { version = "4.5", features = ["derive"] }
 
 [[bin]]
 name = "brp"

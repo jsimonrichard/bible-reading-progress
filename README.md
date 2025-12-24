@@ -69,7 +69,7 @@ This mode overwrites any existing readings for overlapping verse ranges.
 
 ## Data Storage
 
-Your reading progress is stored in `.local/share/bible-reading-progress.yaml`, or the equivalent. The format is human-readable-ish and version-control friendly:
+Your reading progress is stored (by default) in `.local/share/bible-reading-progress.yaml`, or the equivalent. The format is human-readable-ish and version-control friendly:
 
 ```yaml
 books:
@@ -81,6 +81,16 @@ books:
           verse: 7
         - read_count: 1
           last_read: 2025-12-24
+```
+
+
+To change where your bible progress is stored, create a config file:
+
+```yaml
+# .config/bible-reading-progress.yaml
+progress_path: path/to/progress.yaml
+```
+```
 ```
 
 ## Building

@@ -1,4 +1,5 @@
 use color_eyre::Result;
+use clap::Parser;
 use crossterm::event::{self, Event, KeyEventKind};
 use ratatui::prelude::*;
 
@@ -9,6 +10,15 @@ use bible_reading_progress::utils::{load_progress, save_progress};
 use bible_reading_progress::widgets::dashboard::{DashboardAction, DashboardWidget};
 use bible_reading_progress::widgets::manual_add::{ManualAddAction, ManualAddWidget};
 use bible_reading_progress::widgets::record::{RecordAction, RecordWidget};
+
+#[derive(Parser, Debug)]
+#[command(name = "brp")]
+#[command(about = "Bible Reading Progress Tracker", long_about = None)]
+struct Args {
+    /// Display the loaded configuration and exit
+    #[arg(long)]
+    show_config: bool,
+}
 
 enum AppMode {
     Dashboard(DashboardWidget),
@@ -26,8 +36,11 @@ struct App {
 
 impl App {
     fn new() -> Result<Self> {
+        Self::new_with_config(Config::default())
+    }
+
+    fn new_with_config(config: Config) -> Result<Self> {
         let bible = get_bible_structure();
-        let config = Config::default();
         let progress = load_progress(&config)?;
         let dashboard = DashboardWidget::new(bible, &progress);
 
@@ -140,8 +153,23 @@ impl App {
 
 fn main() -> Result<()> {
     color_eyre::install()?;
+    let args = Args::parse();
+
+    let config = Config::load()?;
+
+    if args.show_config {
+        // Display config and exit
+        println!("Configuration:");
+        println!("  Config file: {}", config.config_file_path().display());
+        println!(
+            "  Progress path: {}",
+            config.progress_path_absolute().display()
+        );
+        return Ok(());
+    }
+
     let mut terminal = ratatui::init();
-    let mut app = App::new()?;
+    let mut app = App::new_with_config(config)?;
     let result = app.run(&mut terminal);
     ratatui::restore();
     result
