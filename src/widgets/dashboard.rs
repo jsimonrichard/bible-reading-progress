@@ -59,9 +59,9 @@ impl DashboardWidget {
                 Block::default()
                     .borders(Borders::ALL)
                     .title(if self.show_only_unread {
-                        "Bible Structure (Space/→: expand, ←: collapse, ↑↓: navigate, r: record, q: quit)"
+                        "Bible Structure (Space/→: expand, ←: collapse, ↑↓: navigate, r: record, m: manual add, q: quit)"
                     } else {
-                        "Bible Structure (Space/→: expand, ←: collapse, ↑↓: navigate, r: record, q: quit)"
+                        "Bible Structure (Space/→: expand, ←: collapse, ↑↓: navigate, r: record, m: manual add, q: quit)"
                     }),
             )
             .highlight_style(
@@ -75,7 +75,8 @@ impl DashboardWidget {
         frame.render_stateful_widget(tree, chunks[1], &mut self.tree_state);
 
         // Footer
-        let footer_text = "Space/→: Expand | ←: Collapse | ↑↓: Navigate | r: Record | q: Quit";
+        let footer_text =
+            "Space/→: Expand | ←: Collapse | ↑↓: Navigate | r: Record | m: Manual Add | q: Quit";
         let footer = Paragraph::new(footer_text)
             .style(Style::default().fg(Color::Gray))
             .alignment(Alignment::Center)
@@ -89,6 +90,7 @@ impl DashboardWidget {
                 DashboardAction::Quit
             }
             (_, crossterm::event::KeyCode::Char('r')) => DashboardAction::StartRecord,
+            (_, crossterm::event::KeyCode::Char('m')) => DashboardAction::StartManualAdd,
             (_, crossterm::event::KeyCode::Char('u')) => {
                 self.show_only_unread = !self.show_only_unread;
                 DashboardAction::None
@@ -134,4 +136,5 @@ pub enum DashboardAction {
     None,
     Quit,
     StartRecord,
+    StartManualAdd,
 }

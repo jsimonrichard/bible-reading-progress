@@ -83,6 +83,30 @@ impl ReadingProgress {
             },
         );
     }
+
+    /// Marks a range as read, overwriting any overlapping ranges instead of adding them together.
+    pub fn mark_read_overwrite(
+        &mut self,
+        book: String,
+        reference: InsideBookBibleReference,
+        read_count: u32,
+        last_read: Option<NaiveDate>,
+    ) {
+        let records: &mut RangeMap<InsideBookBibleReference, ReadingRecord> =
+            self.books.entry(book).or_insert_with(RangeMap::new);
+        // For a single verse, use exclusive end (verse + 1)
+        let next_reference = InsideBookBibleReference {
+            chapter: reference.chapter,
+            verse: reference.verse + 1,
+        };
+        records.insert_replace(
+            reference..next_reference,
+            ReadingRecord {
+                read_count,
+                last_read: last_read.unwrap_or_else(|| Utc::now().date_naive()),
+            },
+        );
+    }
 }
 
 impl Default for ReadingProgress {

@@ -7,11 +7,13 @@ use bible_reading_progress::config::Config;
 use bible_reading_progress::progress::ReadingProgress;
 use bible_reading_progress::utils::{load_progress, save_progress};
 use bible_reading_progress::widgets::dashboard::{DashboardAction, DashboardWidget};
+use bible_reading_progress::widgets::manual_add::{ManualAddAction, ManualAddWidget};
 use bible_reading_progress::widgets::record::{RecordAction, RecordWidget};
 
 enum AppMode {
     Dashboard(DashboardWidget),
     Record(RecordWidget),
+    ManualAdd(ManualAddWidget),
 }
 
 struct App {
@@ -50,6 +52,7 @@ impl App {
         match &mut self.mode {
             AppMode::Dashboard(dashboard) => dashboard.render(frame),
             AppMode::Record(record) => record.render(frame),
+            AppMode::ManualAdd(manual_add) => manual_add.render(frame),
         }
     }
 
@@ -78,6 +81,24 @@ impl App {
                         }
                     }
                 }
+                AppMode::ManualAdd(manual_add) => {
+                    let action = manual_add.handle_key(key, self.bible)?;
+                    match action {
+                        ManualAddAction::None => {}
+                        ManualAddAction::Cancel => {
+                            self.dashboard_mode();
+                        }
+                        ManualAddAction::AddReading => {
+                            // Add reading (clears fields), then save and exit
+                            if let Err(e) = manual_add.add_reading(&mut self.progress, self.bible) {
+                                manual_add.error_message = Some(e);
+                            } else {
+                                save_progress(&self.progress, &self.config)?;
+                                self.dashboard_mode();
+                            }
+                        }
+                    }
+                }
             },
             _ => {}
         }
@@ -89,12 +110,18 @@ impl App {
             DashboardAction::None => {}
             DashboardAction::Quit => self.quit(),
             DashboardAction::StartRecord => self.start_record_mode(),
+            DashboardAction::StartManualAdd => self.start_manual_add_mode(),
         }
     }
 
     fn start_record_mode(&mut self) {
         let record = RecordWidget::new(self.bible);
         self.mode = AppMode::Record(record);
+    }
+
+    fn start_manual_add_mode(&mut self) {
+        let manual_add = ManualAddWidget::new(self.bible);
+        self.mode = AppMode::ManualAdd(manual_add);
     }
 
     fn dashboard_mode(&mut self) {
