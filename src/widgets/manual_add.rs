@@ -450,6 +450,7 @@ impl ManualAddWidget {
                             let search_query = self.book_search.clone();
                             let new_matches = Self::compute_book_matches(bible, &search_query);
                             self.book_matches = new_matches;
+                            self.selected_book_index = 0;
                         }
                         Ok(ManualAddAction::None)
                     } else if self.input_focus == InputFocus::Chapter {
@@ -592,8 +593,9 @@ impl ManualAddWidget {
             None
         } else {
             Some(
-                NaiveDate::parse_from_str(date_str.trim(), "%Y-%m-%d")
-                    .map_err(|_| format!("Invalid date format: {}. Expected YYYY-MM-DD", date_str))?,
+                NaiveDate::parse_from_str(date_str.trim(), "%Y-%m-%d").map_err(|_| {
+                    format!("Invalid date format: {}. Expected YYYY-MM-DD", date_str)
+                })?,
             )
         };
 
@@ -765,4 +767,3 @@ pub enum ManualAddAction {
     Cancel,
     AddReading,
 }
-
