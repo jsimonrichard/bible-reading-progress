@@ -45,75 +45,9 @@ pub fn build_dashboard_tree_items(
     let mut ot_books = Vec::new();
     for book in bible.ot.keys() {
         let chapters = bible.ot.get(book).unwrap();
-        let mut book_chapters = Vec::new();
-
         let book_records = progress.books.get(book);
-        for (chapter_idx, &max_verse) in chapters.iter().enumerate() {
-            let chapter = (chapter_idx + 1) as u32;
-            let verse_items = compute_chapter_items(book, chapter, max_verse, book_records);
-
-            let total_verses: u32 = verse_items
-                .iter()
-                .map(|item| item.verse_end - item.verse_start + 1)
-                .sum();
-            let read_verses: u32 = verse_items
-                .iter()
-                .filter(|item| item.is_read)
-                .map(|item| item.verse_end - item.verse_start + 1)
-                .sum();
-
-            // Find the most recent last_read date for this chapter
-            let last_read_date = verse_items.iter().filter_map(|item| item.last_read).max();
-
-            let last_read_text = if let Some(date) = last_read_date {
-                format!(" | Last read: {}", format_last_read_date(date))
-            } else {
-                String::new()
-            };
-
-            let chapter_text = format!(
-                "Chapter {} ({} / {} verses){}",
-                chapter, read_verses, total_verses, last_read_text
-            );
-            let chapter_style = if read_verses == total_verses {
-                Style::default().fg(Color::Green)
-            } else if read_verses > 0 {
-                Style::default().fg(Color::Yellow)
-            } else {
-                Style::default().fg(Color::Red)
-            };
-
-            book_chapters.push(TreeItem::new_leaf(
-                TreeId::Chapter {
-                    book: book.clone(),
-                    chapter,
-                },
-                Text::from(chapter_text).style(chapter_style),
-            ));
-        }
-
-        // Calculate book progress and format label with percentage
-        let (total_verses, read_verses) = calculate_book_progress(&book, chapters, book_records);
-        let percentage = if total_verses > 0 {
-            (read_verses as f64 / total_verses as f64 * 100.0).round()
-        } else {
-            0.0
-        };
-
-        // Find the most recent last_read date across all chapters in this book
-        let book_last_read = if let Some(records) = book_records {
-            records.iter().map(|(_, record)| record.last_read).max()
-        } else {
-            None
-        };
-
-        let last_read_text = if let Some(date) = book_last_read {
-            format!(" | Last read: {}", format_last_read_date(date))
-        } else {
-            String::new()
-        };
-
-        let book_label = format!("{} ({:.0}%){}", book, percentage, last_read_text);
+        let book_chapters = build_chapter_items(book, chapters, book_records);
+        let book_label = build_book_label(book, chapters, book_records);
         let book_id = book.clone();
         ot_books.push(TreeItem::new(TreeId::Book(book_id), book_label, book_chapters).unwrap());
     }
@@ -124,75 +58,9 @@ pub fn build_dashboard_tree_items(
     let mut nt_books = Vec::new();
     for book in bible.nt.keys() {
         let chapters = bible.nt.get(book).unwrap();
-        let mut book_chapters = Vec::new();
-
         let book_records = progress.books.get(book);
-        for (chapter_idx, &max_verse) in chapters.iter().enumerate() {
-            let chapter = (chapter_idx + 1) as u32;
-            let verse_items = compute_chapter_items(book, chapter, max_verse, book_records);
-
-            let total_verses: u32 = verse_items
-                .iter()
-                .map(|item| item.verse_end - item.verse_start + 1)
-                .sum();
-            let read_verses: u32 = verse_items
-                .iter()
-                .filter(|item| item.is_read)
-                .map(|item| item.verse_end - item.verse_start + 1)
-                .sum();
-
-            // Find the most recent last_read date for this chapter
-            let last_read_date = verse_items.iter().filter_map(|item| item.last_read).max();
-
-            let last_read_text = if let Some(date) = last_read_date {
-                format!(" | Last read: {}", format_last_read_date(date))
-            } else {
-                String::new()
-            };
-
-            let chapter_text = format!(
-                "Chapter {} ({} / {} verses){}",
-                chapter, read_verses, total_verses, last_read_text
-            );
-            let chapter_style = if read_verses == total_verses {
-                Style::default().fg(Color::Green)
-            } else if read_verses > 0 {
-                Style::default().fg(Color::Yellow)
-            } else {
-                Style::default().fg(Color::Red)
-            };
-
-            book_chapters.push(TreeItem::new_leaf(
-                TreeId::Chapter {
-                    book: book.clone(),
-                    chapter,
-                },
-                Text::from(chapter_text).style(chapter_style),
-            ));
-        }
-
-        // Calculate book progress and format label with percentage
-        let (total_verses, read_verses) = calculate_book_progress(book, chapters, book_records);
-        let percentage = if total_verses > 0 {
-            read_verses as f64 / total_verses as f64 * 100.0
-        } else {
-            0.0
-        };
-
-        // Find the most recent last_read date across all chapters in this book
-        let book_last_read = if let Some(records) = book_records {
-            records.iter().map(|(_, record)| record.last_read).max()
-        } else {
-            None
-        };
-
-        let last_read_text = if let Some(date) = book_last_read {
-            format!(" | Last read: {}", format_last_read_date(date))
-        } else {
-            String::new()
-        };
-
-        let book_label = format!("{} ({:.1}%){}", book, percentage, last_read_text);
+        let book_chapters = build_chapter_items(book, chapters, book_records);
+        let book_label = build_book_label(book, chapters, book_records);
         let book_id = book.clone();
         nt_books.push(TreeItem::new(TreeId::Book(book_id), book_label, book_chapters).unwrap());
     }
@@ -200,6 +68,270 @@ pub fn build_dashboard_tree_items(
     tree.push(TreeItem::new(TreeId::NewTestament, "New Testament", nt_books).unwrap());
 
     tree
+}
+
+/// Build chapter tree items for a book
+fn build_chapter_items(
+    book: &str,
+    chapters: &[u32],
+    book_records: Option<&RangeMap<InsideBookBibleReference, ReadingRecord>>,
+) -> Vec<TreeItem<'static, TreeId>> {
+    let mut book_chapters = Vec::new();
+
+    for (chapter_idx, &max_verse) in chapters.iter().enumerate() {
+        let chapter = (chapter_idx + 1) as u32;
+        let verse_items = compute_chapter_items(book, chapter, max_verse, book_records);
+
+        let total_verses: u32 = verse_items
+            .iter()
+            .map(|item| item.verse_end - item.verse_start + 1)
+            .sum();
+        let read_verses: u32 = verse_items
+            .iter()
+            .filter(|item| item.is_read)
+            .map(|item| item.verse_end - item.verse_start + 1)
+            .sum();
+
+        // Calculate read count statistics for this chapter
+        let (min_read_count, verses_read_more, total_verses_for_stats) =
+            calculate_chapter_read_stats(chapter, max_verse, book_records);
+
+        // Find the most recent last_read date for this chapter
+        let last_read_date = verse_items.iter().filter_map(|item| item.last_read).max();
+
+        let last_read_text = if let Some(date) = last_read_date {
+            format!(" | Last read: {}", format_last_read_date(date))
+        } else {
+            String::new()
+        };
+
+        let read_count_text =
+            format_read_count_text(min_read_count, verses_read_more, total_verses_for_stats);
+
+        // Special case: if all verses are read at least one more time (100%), add parenthetical with verse count
+        let read_count_display = if verses_read_more == total_verses_for_stats
+            && total_verses_for_stats > 0
+            && min_read_count > 0
+        {
+            format!("{}x ({} verses)", min_read_count, total_verses_for_stats)
+        } else {
+            read_count_text
+        };
+
+        let chapter_text = if !read_count_display.is_empty() {
+            format!(
+                "Chapter {} ({}){}",
+                chapter, read_count_display, last_read_text
+            )
+        } else {
+            format!(
+                "Chapter {} ({} / {} verses){}",
+                chapter, read_verses, total_verses, last_read_text
+            )
+        };
+        let chapter_style = if read_verses == total_verses {
+            Style::default().fg(Color::Green)
+        } else if read_verses > 0 {
+            Style::default().fg(Color::Yellow)
+        } else {
+            Style::default().fg(Color::Red)
+        };
+
+        book_chapters.push(TreeItem::new_leaf(
+            TreeId::Chapter {
+                book: book.to_string(),
+                chapter,
+            },
+            Text::from(chapter_text).style(chapter_style),
+        ));
+    }
+
+    book_chapters
+}
+
+/// Build book label text
+fn build_book_label(
+    book: &str,
+    chapters: &[u32],
+    book_records: Option<&RangeMap<InsideBookBibleReference, ReadingRecord>>,
+) -> String {
+    // Calculate read count statistics for this book
+    let (min_read_count, verses_read_more, total_verses_for_stats) =
+        calculate_book_read_stats(chapters, book_records);
+
+    // Find the most recent last_read date across all chapters in this book
+    let book_last_read = if let Some(records) = book_records {
+        records.iter().map(|(_, record)| record.last_read).max()
+    } else {
+        None
+    };
+
+    let last_read_text = if let Some(date) = book_last_read {
+        format!(" | Last read: {}", format_last_read_date(date))
+    } else {
+        String::new()
+    };
+
+    let read_count_text =
+        format_read_count_text(min_read_count, verses_read_more, total_verses_for_stats);
+
+    if !read_count_text.is_empty() {
+        format!("{} ({}){}", book, read_count_text, last_read_text)
+    } else {
+        format!("{} ({})", book, last_read_text)
+    }
+}
+
+/// Format read count display text: "2x" or "2x + 2%" or "2x + 20/30"
+/// If all verses are read at least one more time (verses_read_more == total_verses), don't show the extra part
+fn format_read_count_text(min_read_count: u32, verses_read_more: u32, total_verses: u32) -> String {
+    if min_read_count == 0 {
+        return String::from("0%");
+    }
+
+    // If no verses are read more, just show the base count
+    if verses_read_more == 0 {
+        return format!("{}x", min_read_count);
+    }
+
+    // If all verses are read at least one more time (100%), don't show the extra part
+    // Check both exact equality and if the fraction is effectively 1.0
+    if verses_read_more == total_verses && total_verses > 0 {
+        return format!("{}x", min_read_count);
+    }
+
+    // Use percentage if total is >= 100, otherwise use fraction
+    if total_verses >= 100 {
+        let percentage = (verses_read_more as f64 / total_verses as f64 * 100.0).round();
+        // Don't show if it's 100% (check both exact and rounded percentage)
+        if verses_read_more == total_verses || percentage >= 100.0 {
+            format!("{}x", min_read_count)
+        } else {
+            format!("{}x + {:.0}%", min_read_count, percentage)
+        }
+    } else {
+        // For fractions, only hide if it's exactly all verses
+        if verses_read_more == total_verses {
+            format!("{}x", min_read_count)
+        } else {
+            format!(
+                "{}x + {}/{} verses",
+                min_read_count, verses_read_more, total_verses
+            )
+        }
+    }
+}
+
+/// Get the maximum read count for each verse in a chapter
+fn get_verse_read_counts(
+    chapter: u32,
+    max_verse: u32,
+    book_records: &RangeMap<InsideBookBibleReference, ReadingRecord>,
+) -> std::collections::HashMap<u32, u32> {
+    let mut verse_read_counts = std::collections::HashMap::new();
+
+    let chapter_start = InsideBookBibleReference { chapter, verse: 1 };
+    let chapter_end_exclusive = InsideBookBibleReference {
+        chapter,
+        verse: max_verse + 1,
+    };
+
+    for (range, record) in book_records.range(chapter_start..chapter_end_exclusive) {
+        if range.start.chapter == chapter && range.end.chapter == chapter {
+            for verse in range.start.verse..range.end.verse {
+                let current_max = verse_read_counts.get(&verse).copied().unwrap_or(0);
+                if record.read_count > current_max {
+                    verse_read_counts.insert(verse, record.read_count);
+                }
+            }
+        }
+    }
+
+    verse_read_counts
+}
+
+/// Calculate min read count and count of verses read at least one more time for a chapter
+/// Returns (min_read_count, verses_read_more, total_verses)
+fn calculate_chapter_read_stats(
+    chapter: u32,
+    max_verse: u32,
+    book_records: Option<&RangeMap<InsideBookBibleReference, ReadingRecord>>,
+) -> (u32, u32, u32) {
+    if book_records.is_none() {
+        return (0, 0, 0);
+    }
+
+    let records = book_records.unwrap();
+    let verse_read_counts = get_verse_read_counts(chapter, max_verse, records);
+
+    // Find minimum read count across all verses in this chapter
+    // Include verses that haven't been read (read_count = 0)
+    let mut min_read_count = u32::MAX;
+    for verse in 1..=max_verse {
+        let verse_read_count = verse_read_counts.get(&verse).copied().unwrap_or(0);
+        if verse_read_count < min_read_count {
+            min_read_count = verse_read_count;
+        }
+    }
+
+    // If no verses have been read, min_read_count will be MAX, so set it to 0
+    if min_read_count == u32::MAX {
+        return (0, 0, 0);
+    }
+
+    // Count verses that have been read at least one more time than the minimum
+    let mut verses_read_more = 0u32;
+    for verse in 1..=max_verse {
+        let verse_read_count = verse_read_counts.get(&verse).copied().unwrap_or(0);
+        if verse_read_count > min_read_count {
+            verses_read_more += 1;
+        }
+    }
+
+    (min_read_count, verses_read_more, max_verse)
+}
+
+/// Calculate min read count and count of verses read at least one more time for a book
+/// Returns (min_read_count, verses_read_more, total_verses)
+fn calculate_book_read_stats(
+    chapters: &[u32],
+    book_records: Option<&RangeMap<InsideBookBibleReference, ReadingRecord>>,
+) -> (u32, u32, u32) {
+    if book_records.is_none() {
+        return (0, 0, 0);
+    }
+
+    let records = book_records.unwrap();
+    let mut all_verse_read_counts = Vec::new();
+
+    // Collect read counts for all verses in the book
+    for (chapter_idx, &max_verse) in chapters.iter().enumerate() {
+        let chapter = (chapter_idx + 1) as u32;
+        let verse_read_counts = get_verse_read_counts(chapter, max_verse, records);
+
+        for verse in 1..=max_verse {
+            let read_count = verse_read_counts.get(&verse).copied().unwrap_or(0);
+            all_verse_read_counts.push(read_count);
+        }
+    }
+
+    if all_verse_read_counts.is_empty() {
+        return (0, 0, 0);
+    }
+
+    // Find minimum read count across all verses in the book
+    // This will be 0 if any verse hasn't been read
+    let min_read_count = all_verse_read_counts.iter().min().copied().unwrap_or(0);
+
+    // Count verses that have been read at least one more time than the minimum
+    let verses_read_more = all_verse_read_counts
+        .iter()
+        .filter(|&&count| count > min_read_count)
+        .count() as u32;
+
+    let total_verses = all_verse_read_counts.len() as u32;
+
+    (min_read_count, verses_read_more, total_verses)
 }
 
 /// Format a date in natural language (e.g., "today", "yesterday", "last week")
