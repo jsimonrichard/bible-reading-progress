@@ -1,3 +1,4 @@
+use chrono::{NaiveDate, Utc};
 use ratatui::style::Color;
 use ratatui::style::Style;
 use ratatui::text::Text;
@@ -61,9 +62,18 @@ pub fn build_dashboard_tree_items(
                 .map(|item| item.verse_end - item.verse_start + 1)
                 .sum();
 
+            // Find the most recent last_read date for this chapter
+            let last_read_date = verse_items.iter().filter_map(|item| item.last_read).max();
+
+            let last_read_text = if let Some(date) = last_read_date {
+                format!(" | Last read: {}", format_last_read_date(date))
+            } else {
+                String::new()
+            };
+
             let chapter_text = format!(
-                "Chapter {} ({} / {} verses)",
-                chapter, read_verses, total_verses
+                "Chapter {} ({} / {} verses){}",
+                chapter, read_verses, total_verses, last_read_text
             );
             let chapter_style = if read_verses == total_verses {
                 Style::default().fg(Color::Green)
@@ -89,7 +99,21 @@ pub fn build_dashboard_tree_items(
         } else {
             0.0
         };
-        let book_label = format!("{} ({:.0}%)", book, percentage);
+
+        // Find the most recent last_read date across all chapters in this book
+        let book_last_read = if let Some(records) = book_records {
+            records.iter().map(|(_, record)| record.last_read).max()
+        } else {
+            None
+        };
+
+        let last_read_text = if let Some(date) = book_last_read {
+            format!(" | Last read: {}", format_last_read_date(date))
+        } else {
+            String::new()
+        };
+
+        let book_label = format!("{} ({:.0}%){}", book, percentage, last_read_text);
         let book_id = book.clone();
         ot_books.push(TreeItem::new(TreeId::Book(book_id), book_label, book_chapters).unwrap());
     }
@@ -117,9 +141,18 @@ pub fn build_dashboard_tree_items(
                 .map(|item| item.verse_end - item.verse_start + 1)
                 .sum();
 
+            // Find the most recent last_read date for this chapter
+            let last_read_date = verse_items.iter().filter_map(|item| item.last_read).max();
+
+            let last_read_text = if let Some(date) = last_read_date {
+                format!(" | Last read: {}", format_last_read_date(date))
+            } else {
+                String::new()
+            };
+
             let chapter_text = format!(
-                "Chapter {} ({} / {} verses)",
-                chapter, read_verses, total_verses
+                "Chapter {} ({} / {} verses){}",
+                chapter, read_verses, total_verses, last_read_text
             );
             let chapter_style = if read_verses == total_verses {
                 Style::default().fg(Color::Green)
@@ -145,7 +178,21 @@ pub fn build_dashboard_tree_items(
         } else {
             0.0
         };
-        let book_label = format!("{} ({:.1}%)", book, percentage);
+
+        // Find the most recent last_read date across all chapters in this book
+        let book_last_read = if let Some(records) = book_records {
+            records.iter().map(|(_, record)| record.last_read).max()
+        } else {
+            None
+        };
+
+        let last_read_text = if let Some(date) = book_last_read {
+            format!(" | Last read: {}", format_last_read_date(date))
+        } else {
+            String::new()
+        };
+
+        let book_label = format!("{} ({:.1}%){}", book, percentage, last_read_text);
         let book_id = book.clone();
         nt_books.push(TreeItem::new(TreeId::Book(book_id), book_label, book_chapters).unwrap());
     }
@@ -153,6 +200,36 @@ pub fn build_dashboard_tree_items(
     tree.push(TreeItem::new(TreeId::NewTestament, "New Testament", nt_books).unwrap());
 
     tree
+}
+
+/// Format a date in natural language (e.g., "today", "yesterday", "last week")
+fn format_last_read_date(date: NaiveDate) -> String {
+    let today = Utc::now().date_naive();
+    let days_ago = today.signed_duration_since(date).num_days();
+
+    match days_ago {
+        0 => "today".to_string(),
+        1 => "yesterday".to_string(),
+        2..=7 => format!("{} days ago", days_ago),
+        8..=14 => "last week".to_string(),
+        15..=30 => {
+            let weeks = days_ago / 7;
+            if weeks == 1 {
+                "1 week ago".to_string()
+            } else {
+                format!("{} weeks ago", weeks)
+            }
+        }
+        31..=60 => {
+            let months = days_ago / 30;
+            if months == 1 {
+                "1 month ago".to_string()
+            } else {
+                format!("{} months ago", months)
+            }
+        }
+        _ => date.format("%Y-%m-%d").to_string(),
+    }
 }
 
 /// Calculate the total and read verses for a book, taking into account read counts
