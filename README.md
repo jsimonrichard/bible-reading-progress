@@ -17,6 +17,11 @@ Simply run the application:
 cargo run
 ```
 
+To install:
+```bash
+cargo install --path .
+```
+
 The application starts in **Dashboard mode** by default, showing all your reading progress.
 
 ### Dashboard Mode
