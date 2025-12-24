@@ -21,7 +21,7 @@
             "cargo": {
                 "args": [
                     "run",
-                    "--bin=bible-reading-progress"
+                    "--bin=brp"
                 ]
             },
             "args": []
@@ -33,7 +33,7 @@
             "cargo": {
                 "args": [
                     "test",
-                    "--bin=bible-reading-progress"
+                    "--bin=brp"
                 ]
             }
         },

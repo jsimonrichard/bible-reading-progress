@@ -1,5 +1,5 @@
-use color_eyre::Result;
 use clap::Parser;
+use color_eyre::Result;
 use crossterm::event::{self, Event, KeyEventKind};
 use ratatui::prelude::*;
 
@@ -35,10 +35,6 @@ struct App {
 }
 
 impl App {
-    fn new() -> Result<Self> {
-        Self::new_with_config(Config::default())
-    }
-
     fn new_with_config(config: Config) -> Result<Self> {
         let bible = get_bible_structure();
         let progress = load_progress(&config)?;
