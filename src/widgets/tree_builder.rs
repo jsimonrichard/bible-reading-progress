@@ -39,6 +39,9 @@ pub fn build_dashboard_tree_items(
     bible: &'static crate::bible_structure::BibleStructure,
     progress: &ReadingProgress,
 ) -> Vec<TreeItem<'static, TreeId>> {
+    // First pass: calculate maximum prefix width
+    let max_prefix_width = calculate_max_prefix_width(bible, progress);
+
     let mut tree = Vec::new();
 
     // Old Testament - calculate min_read_count for the testament
@@ -48,8 +51,21 @@ pub fn build_dashboard_tree_items(
         let chapters = bible.ot.get(book).unwrap();
         let book_records = progress.books.get(book);
         let (book_min_read_count, _, _) = calculate_book_read_stats(chapters, book_records);
-        let (book_chapters, chapter_colors) = build_chapter_items(book, chapters, book_records, book_min_read_count);
-        let book_label = build_book_label(book, chapters, book_records, ot_min_read_count, &chapter_colors);
+        let (book_chapters, chapter_colors) = build_chapter_items(
+            book,
+            chapters,
+            book_records,
+            book_min_read_count,
+            max_prefix_width,
+        );
+        let book_label = build_book_label(
+            book,
+            chapters,
+            book_records,
+            ot_min_read_count,
+            &chapter_colors,
+            max_prefix_width,
+        );
         let book_id = book.clone();
         ot_books.push(TreeItem::new(TreeId::Book(book_id), book_label, book_chapters).unwrap());
     }
@@ -63,8 +79,21 @@ pub fn build_dashboard_tree_items(
         let chapters = bible.nt.get(book).unwrap();
         let book_records = progress.books.get(book);
         let (book_min_read_count, _, _) = calculate_book_read_stats(chapters, book_records);
-        let (book_chapters, chapter_colors) = build_chapter_items(book, chapters, book_records, book_min_read_count);
-        let book_label = build_book_label(book, chapters, book_records, nt_min_read_count, &chapter_colors);
+        let (book_chapters, chapter_colors) = build_chapter_items(
+            book,
+            chapters,
+            book_records,
+            book_min_read_count,
+            max_prefix_width,
+        );
+        let book_label = build_book_label(
+            book,
+            chapters,
+            book_records,
+            nt_min_read_count,
+            &chapter_colors,
+            max_prefix_width,
+        );
         let book_id = book.clone();
         nt_books.push(TreeItem::new(TreeId::Book(book_id), book_label, book_chapters).unwrap());
     }
@@ -74,6 +103,143 @@ pub fn build_dashboard_tree_items(
     tree
 }
 
+/// Calculate the maximum width of the prefix portion (book/chapter name + read count)
+/// across all books and chapters, excluding the "Last read:" portion
+fn calculate_max_prefix_width(
+    bible: &'static crate::bible_structure::BibleStructure,
+    progress: &ReadingProgress,
+) -> usize {
+    let mut max_width = 0;
+
+    // Check Old Testament books
+    for book in bible.ot.keys() {
+        let chapters = bible.ot.get(book).unwrap();
+        let book_records = progress.books.get(book);
+        let (book_min_read_count, verses_read_more, total_verses_for_stats) =
+            calculate_book_read_stats(chapters, book_records);
+        let read_count_text = format_read_count_text(
+            book_min_read_count,
+            verses_read_more,
+            total_verses_for_stats,
+        );
+        let book_prefix = if !read_count_text.is_empty() {
+            format!("{} ({})", book, read_count_text)
+        } else {
+            book.clone()
+        };
+        max_width = max_width.max(book_prefix.len());
+
+        // Check chapters in this book
+        for (chapter_idx, &max_verse) in chapters.iter().enumerate() {
+            let chapter = (chapter_idx + 1) as u32;
+            let verse_items = compute_chapter_items(book, chapter, max_verse, book_records);
+            let total_verses: u32 = verse_items
+                .iter()
+                .map(|item| item.verse_end - item.verse_start + 1)
+                .sum();
+            let read_verses: u32 = verse_items
+                .iter()
+                .filter(|item| item.is_read)
+                .map(|item| item.verse_end - item.verse_start + 1)
+                .sum();
+
+            let (chapter_min_read_count, verses_read_more, total_verses_for_stats) =
+                calculate_chapter_read_stats(chapter, max_verse, book_records);
+            let read_count_text = format_read_count_text(
+                chapter_min_read_count,
+                verses_read_more,
+                total_verses_for_stats,
+            );
+            let read_count_display = if verses_read_more == total_verses_for_stats
+                && total_verses_for_stats > 0
+                && chapter_min_read_count > 0
+            {
+                format!(
+                    "{}x ({} verses)",
+                    chapter_min_read_count, total_verses_for_stats
+                )
+            } else {
+                read_count_text
+            };
+
+            let chapter_prefix = if !read_count_display.is_empty() {
+                format!("Chapter {} ({})", chapter, read_count_display)
+            } else {
+                format!(
+                    "Chapter {} ({} / {} verses)",
+                    chapter, read_verses, total_verses
+                )
+            };
+            max_width = max_width.max(chapter_prefix.len());
+        }
+    }
+
+    // Check New Testament books
+    for book in bible.nt.keys() {
+        let chapters = bible.nt.get(book).unwrap();
+        let book_records = progress.books.get(book);
+        let (book_min_read_count, verses_read_more, total_verses_for_stats) =
+            calculate_book_read_stats(chapters, book_records);
+        let read_count_text = format_read_count_text(
+            book_min_read_count,
+            verses_read_more,
+            total_verses_for_stats,
+        );
+        let book_prefix = if !read_count_text.is_empty() {
+            format!("{} ({})", book, read_count_text)
+        } else {
+            book.clone()
+        };
+        max_width = max_width.max(book_prefix.len());
+
+        // Check chapters in this book
+        for (chapter_idx, &max_verse) in chapters.iter().enumerate() {
+            let chapter = (chapter_idx + 1) as u32;
+            let verse_items = compute_chapter_items(book, chapter, max_verse, book_records);
+            let total_verses: u32 = verse_items
+                .iter()
+                .map(|item| item.verse_end - item.verse_start + 1)
+                .sum();
+            let read_verses: u32 = verse_items
+                .iter()
+                .filter(|item| item.is_read)
+                .map(|item| item.verse_end - item.verse_start + 1)
+                .sum();
+
+            let (chapter_min_read_count, verses_read_more, total_verses_for_stats) =
+                calculate_chapter_read_stats(chapter, max_verse, book_records);
+            let read_count_text = format_read_count_text(
+                chapter_min_read_count,
+                verses_read_more,
+                total_verses_for_stats,
+            );
+            let read_count_display = if verses_read_more == total_verses_for_stats
+                && total_verses_for_stats > 0
+                && chapter_min_read_count > 0
+            {
+                format!(
+                    "{}x ({} verses)",
+                    chapter_min_read_count, total_verses_for_stats
+                )
+            } else {
+                read_count_text
+            };
+
+            let chapter_prefix = if !read_count_display.is_empty() {
+                format!("Chapter {} ({})", chapter, read_count_display)
+            } else {
+                format!(
+                    "Chapter {} ({} / {} verses)",
+                    chapter, read_verses, total_verses
+                )
+            };
+            max_width = max_width.max(chapter_prefix.len());
+        }
+    }
+
+    max_width
+}
+
 /// Build chapter tree items for a book
 /// Returns (chapter_items, chapter_colors) where chapter_colors indicates if each chapter is green
 fn build_chapter_items(
@@ -81,6 +247,7 @@ fn build_chapter_items(
     chapters: &[u32],
     book_records: Option<&RangeMap<InsideBookBibleReference, ReadingRecord>>,
     book_min_read_count: u32,
+    max_prefix_width: usize,
 ) -> (Vec<TreeItem<'static, TreeId>>, Vec<bool>) {
     let mut book_chapters = Vec::new();
     let mut chapter_colors = Vec::new();
@@ -122,35 +289,41 @@ fn build_chapter_items(
         let last_read_date = verse_items.iter().filter_map(|item| item.last_read).max();
 
         let last_read_text = if let Some(date) = last_read_date {
-            format!(" | Last read: {}", format_last_read_date(date))
+            let date_str = format_last_read_date(date);
+            format!(" | Last read: {:>15}", date_str)
         } else {
             String::new()
         };
 
-        let read_count_text =
-            format_read_count_text(chapter_min_read_count, verses_read_more, total_verses_for_stats);
+        let read_count_text = format_read_count_text(
+            chapter_min_read_count,
+            verses_read_more,
+            total_verses_for_stats,
+        );
 
         // Special case: if all verses are read at least one more time (100%), add parenthetical with verse count
         let read_count_display = if verses_read_more == total_verses_for_stats
             && total_verses_for_stats > 0
             && chapter_min_read_count > 0
         {
-            format!("{}x ({} verses)", chapter_min_read_count, total_verses_for_stats)
+            format!(
+                "{}x ({} verses)",
+                chapter_min_read_count, total_verses_for_stats
+            )
         } else {
             read_count_text
         };
 
-        let chapter_text = if !read_count_display.is_empty() {
-            format!(
-                "Chapter {} ({}){}",
-                chapter, read_count_display, last_read_text
-            )
+        let chapter_prefix = if !read_count_display.is_empty() {
+            format!("Chapter {} ({})", chapter, read_count_display)
         } else {
             format!(
-                "Chapter {} ({} / {} verses){}",
-                chapter, read_verses, total_verses, last_read_text
+                "Chapter {} ({} / {} verses)",
+                chapter, read_verses, total_verses
             )
         };
+        let padding = " ".repeat(max_prefix_width.saturating_sub(chapter_prefix.len()));
+        let chapter_text = format!("{}{}{}", chapter_prefix, padding, last_read_text);
 
         let is_green = chapter_style.fg == Some(Color::Green);
         chapter_colors.push(is_green);
@@ -174,6 +347,7 @@ fn build_book_label(
     book_records: Option<&RangeMap<InsideBookBibleReference, ReadingRecord>>,
     testament_min_read_count: u32,
     chapter_colors: &[bool],
+    max_prefix_width: usize,
 ) -> Text<'static> {
     // Calculate read count statistics for this book
     let (book_min_read_count, verses_read_more, total_verses_for_stats) =
@@ -187,19 +361,25 @@ fn build_book_label(
     };
 
     let last_read_text = if let Some(date) = book_last_read {
-        format!(" | Last read: {}", format_last_read_date(date))
+        let date_str = format_last_read_date(date);
+        format!(" | Last read: {:>15}", date_str)
     } else {
         String::new()
     };
 
-    let read_count_text =
-        format_read_count_text(book_min_read_count, verses_read_more, total_verses_for_stats);
+    let read_count_text = format_read_count_text(
+        book_min_read_count,
+        verses_read_more,
+        total_verses_for_stats,
+    );
 
-    let book_text = if !read_count_text.is_empty() {
-        format!("{} ({}){}", book, read_count_text, last_read_text)
+    let book_prefix = if !read_count_text.is_empty() {
+        format!("{} ({})", book, read_count_text)
     } else {
-        format!("{} ({})", book, last_read_text)
+        book.to_string()
     };
+    let padding = " ".repeat(max_prefix_width.saturating_sub(book_prefix.len()));
+    let book_text = format!("{}{}{}", book_prefix, padding, last_read_text);
 
     // Determine book color based on children's colors first, then fall back to read count comparison
     let book_style = determine_book_color_from_children(
