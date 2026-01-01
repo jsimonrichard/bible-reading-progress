@@ -240,15 +240,22 @@ fn calculate_max_prefix_width(
     max_width
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ChapterColor {
+    Green,
+    Yellow,
+    White,
+}
+
 /// Build chapter tree items for a book
-/// Returns (chapter_items, chapter_colors) where chapter_colors indicates if each chapter is green
+/// Returns (chapter_items, chapter_colors) where chapter_colors indicates the color state of each chapter
 fn build_chapter_items(
     book: &str,
     chapters: &[u32],
     book_records: Option<&RangeMap<InsideBookBibleReference, ReadingRecord>>,
     book_min_read_count: u32,
     max_prefix_width: usize,
-) -> (Vec<TreeItem<'static, TreeId>>, Vec<bool>) {
+) -> (Vec<TreeItem<'static, TreeId>>, Vec<ChapterColor>) {
     let mut book_chapters = Vec::new();
     let mut chapter_colors = Vec::new();
 
@@ -270,20 +277,13 @@ fn build_chapter_items(
         let (chapter_min_read_count, verses_read_more, total_verses_for_stats) =
             calculate_chapter_read_stats(chapter, max_verse, book_records);
 
-        // Get verse read counts to determine color
-        let verse_read_counts = if let Some(records) = book_records {
-            get_verse_read_counts(chapter, max_verse, records)
+        let chapter_style = if chapter_min_read_count > book_min_read_count {
+            Style::default().fg(Color::Green)
+        } else if verses_read_more > 0 {
+            Style::default().fg(Color::Yellow)
         } else {
-            std::collections::HashMap::new()
+            Style::default().fg(Color::White)
         };
-
-        // Determine chapter color based on comparison to book's min_read_count
-        let chapter_style = determine_chapter_color(
-            chapter_min_read_count,
-            book_min_read_count,
-            &verse_read_counts,
-            max_verse,
-        );
 
         // Find the most recent last_read date for this chapter
         let last_read_date = verse_items.iter().filter_map(|item| item.last_read).max();
@@ -325,8 +325,12 @@ fn build_chapter_items(
         let padding = " ".repeat(max_prefix_width.saturating_sub(chapter_prefix.len()));
         let chapter_text = format!("{}{}{}", chapter_prefix, padding, last_read_text);
 
-        let is_green = chapter_style.fg == Some(Color::Green);
-        chapter_colors.push(is_green);
+        let chapter_color = match chapter_style.fg {
+            Some(Color::Green) => ChapterColor::Green,
+            Some(Color::Yellow) => ChapterColor::Yellow,
+            _ => ChapterColor::White,
+        };
+        chapter_colors.push(chapter_color);
 
         book_chapters.push(TreeItem::new_leaf(
             TreeId::Chapter {
@@ -346,7 +350,7 @@ fn build_book_label(
     chapters: &[u32],
     book_records: Option<&RangeMap<InsideBookBibleReference, ReadingRecord>>,
     testament_min_read_count: u32,
-    chapter_colors: &[bool],
+    chapter_colors: &[ChapterColor],
     max_prefix_width: usize,
 ) -> Text<'static> {
     // Calculate read count statistics for this book
@@ -574,59 +578,36 @@ fn calculate_testament_min_read_count(
     all_verse_read_counts.iter().min().copied().unwrap_or(0)
 }
 
-/// Determine chapter color based on comparison to book's min_read_count
-/// - White if chapter's min_read_count equals book's min_read_count
-/// - Yellow if partially greater (some verses have read_count > book's min_read_count but not all)
-/// - Green if at least one verse has read_count >= book's min_read_count + 1
-fn determine_chapter_color(
-    chapter_min_read_count: u32,
-    book_min_read_count: u32,
-    verse_read_counts: &std::collections::HashMap<u32, u32>,
-    max_verse: u32,
-) -> Style {
-    // If chapter's min_read_count equals book's min_read_count, use white
-    if chapter_min_read_count == book_min_read_count {
-        return Style::default().fg(Color::White);
-    }
-
-    // Check if at least one verse has read_count >= book_min_read_count + 1
-    let has_verse_one_more = (1..=max_verse).any(|verse| {
-        let count = verse_read_counts.get(&verse).copied().unwrap_or(0);
-        count >= book_min_read_count + 1
-    });
-
-    if has_verse_one_more {
-        // At least one verse is one or more times greater - green
-        Style::default().fg(Color::Green)
-    } else {
-        // Some verses are greater than book_min but none are one more - yellow
-        // (This happens when chapter_min > book_min but no verse reaches book_min + 1)
-        Style::default().fg(Color::Yellow)
-    }
-}
-
 /// Determine book color based on children's colors first, then fall back to read count comparison
 /// - Green if all children are green
-/// - Yellow if some (but not all) children are green
+/// - Yellow if any child is yellow (partially read) or some (but not all) children are green
 /// - Otherwise, use read count comparison logic
 fn determine_book_color_from_children(
     book_min_read_count: u32,
     testament_min_read_count: u32,
     chapters: &[u32],
     book_records: Option<&RangeMap<InsideBookBibleReference, ReadingRecord>>,
-    chapter_colors: &[bool],
+    chapter_colors: &[ChapterColor],
 ) -> Style {
-    // Count green chapters
-    let green_count = chapter_colors.iter().filter(|&&is_green| is_green).count();
     let total_chapters = chapter_colors.len();
 
     // If any chapters exist and we have color information
     if total_chapters > 0 {
+        // Count chapters by color
+        let green_count = chapter_colors
+            .iter()
+            .filter(|&&c| c == ChapterColor::Green)
+            .count();
+        let yellow_count = chapter_colors
+            .iter()
+            .filter(|&&c| c == ChapterColor::Yellow)
+            .count();
+
         if green_count == total_chapters {
             // All children are green - green
             return Style::default().fg(Color::Green);
-        } else if green_count > 0 {
-            // Some (but not all) children are green - yellow
+        } else if yellow_count > 0 || green_count > 0 {
+            // Any child is yellow (partially read) or some (but not all) children are green - yellow
             return Style::default().fg(Color::Yellow);
         }
     }
