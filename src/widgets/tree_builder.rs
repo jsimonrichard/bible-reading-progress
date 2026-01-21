@@ -1,4 +1,4 @@
-use chrono::{NaiveDate, Utc};
+use chrono::{Duration, NaiveDate, Utc};
 use ratatui::style::Color;
 use ratatui::style::Style;
 use ratatui::text::Text;
@@ -779,4 +779,95 @@ fn compute_chapter_items(
     }
 
     items
+}
+
+/// Represents a recent reading entry for display
+#[derive(Debug, Clone)]
+pub struct RecentReadEntry {
+    pub book: String,
+    pub chapter: u32,
+    pub date: NaiveDate,
+}
+
+/// Collect recent reading entries grouped by date
+/// Returns entries for the most recent day, plus the second most recent day if it's not contiguous
+pub fn collect_recent_reads(progress: &ReadingProgress) -> Vec<(NaiveDate, Vec<RecentReadEntry>)> {
+    // Collect all (date, book, chapter) tuples
+    let mut all_entries: Vec<(NaiveDate, String, u32)> = Vec::new();
+
+    for (book, records) in &progress.books {
+        for (range, record) in records.iter() {
+            // Use the chapter from the start of the range
+            let chapter = range.start.chapter;
+            all_entries.push((record.last_read, book.clone(), chapter));
+        }
+    }
+
+    if all_entries.is_empty() {
+        return Vec::new();
+    }
+
+    // Sort by date descending, then by book/chapter for consistent ordering
+    all_entries.sort_by(|a, b| {
+        b.0.cmp(&a.0)
+            .then_with(|| a.1.cmp(&b.1))
+            .then_with(|| a.2.cmp(&b.2))
+    });
+
+    // Group by date and deduplicate chapters within each date
+    let mut date_groups: Vec<(NaiveDate, Vec<RecentReadEntry>)> = Vec::new();
+    let mut current_date: Option<NaiveDate> = None;
+    let mut current_entries: Vec<RecentReadEntry> = Vec::new();
+    let mut seen_chapters: std::collections::HashSet<(String, u32)> =
+        std::collections::HashSet::new();
+
+    for (date, book, chapter) in all_entries {
+        if current_date != Some(date) {
+            if let Some(d) = current_date {
+                if !current_entries.is_empty() {
+                    date_groups.push((d, std::mem::take(&mut current_entries)));
+                }
+            }
+            current_date = Some(date);
+            seen_chapters.clear();
+        }
+
+        // Deduplicate chapters within the same date
+        if !seen_chapters.contains(&(book.clone(), chapter)) {
+            seen_chapters.insert((book.clone(), chapter));
+            current_entries.push(RecentReadEntry {
+                book,
+                chapter,
+                date,
+            });
+        }
+    }
+
+    // Don't forget the last group
+    if let Some(d) = current_date {
+        if !current_entries.is_empty() {
+            date_groups.push((d, current_entries));
+        }
+    }
+
+    if date_groups.is_empty() {
+        return Vec::new();
+    }
+
+    // Always include the most recent day
+    let mut result = vec![date_groups[0].clone()];
+
+    // Check if we should include the second day
+    if date_groups.len() > 1 {
+        let most_recent = date_groups[0].0;
+        let second_recent = date_groups[1].0;
+
+        // Include second day if it's not contiguous (not yesterday relative to most recent)
+        let is_contiguous = most_recent - Duration::days(1) == second_recent;
+        if !is_contiguous {
+            result.push(date_groups[1].clone());
+        }
+    }
+
+    result
 }
