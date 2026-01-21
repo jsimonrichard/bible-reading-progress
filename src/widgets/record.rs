@@ -5,7 +5,7 @@ use fuzzy_matcher::FuzzyMatcher;
 use ratatui::{prelude::*, widgets::*};
 
 use crate::progress::{InsideBookBibleReference, ReadingProgress};
-use crate::utils::{get_all_books, parse_verse_ranges};
+use crate::utils::{get_all_books, get_book_aliases, parse_verse_ranges};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum InputFocus {
@@ -646,16 +646,43 @@ impl RecordWidget {
             all_books
         } else {
             let matcher = SkimMatcherV2::default();
-            let mut scored: Vec<(i64, String)> = all_books
+            let aliases = get_book_aliases(bible);
+
+            // Create a list of (match_text, canonical_name) pairs
+            let mut match_candidates: Vec<(&str, &str)> = all_books
+                .iter()
+                .map(|book| (book.as_str(), book.as_str()))
+                .collect();
+
+            // Add aliases as additional match candidates
+            for (alias, canonical) in &aliases {
+                match_candidates.push((alias.as_str(), canonical.as_str()));
+            }
+
+            // Score all candidates and collect unique canonical names
+            let mut scored: Vec<(i64, String)> = match_candidates
                 .into_iter()
-                .filter_map(|book| {
+                .filter_map(|(match_text, canonical)| {
                     matcher
-                        .fuzzy_match(&book, search_query)
-                        .map(|score| (score, book))
+                        .fuzzy_match(match_text, search_query)
+                        .map(|score| (score, canonical.to_string()))
                 })
                 .collect();
+
             scored.sort_by(|a, b| b.0.cmp(&a.0)); // Sort by score descending
-            scored.into_iter().map(|(_, book)| book).collect()
+
+            // Deduplicate while preserving order (keep highest score for each book)
+            let mut seen = std::collections::HashSet::new();
+            scored
+                .into_iter()
+                .filter_map(|(_, book)| {
+                    if seen.insert(book.clone()) {
+                        Some(book)
+                    } else {
+                        None
+                    }
+                })
+                .collect()
         }
     }
 }

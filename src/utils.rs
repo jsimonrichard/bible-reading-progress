@@ -11,6 +11,49 @@ pub fn get_all_books(bible: &crate::bible_structure::BibleStructure) -> Vec<Stri
     books
 }
 
+/// Generate alternate names for a book (e.g., "I Peter" -> ["1 Peter", "1st Peter"])
+/// Returns a list of (alias, canonical_name) tuples for all books
+pub fn get_book_aliases(bible: &crate::bible_structure::BibleStructure) -> Vec<(String, String)> {
+    let all_books = get_all_books(bible);
+    let mut aliases = Vec::new();
+
+    for book in all_books {
+        // Add aliases for Roman numeral prefixes
+        if let Some(alias) = generate_arabic_alias(&book) {
+            aliases.push((alias, book.clone()));
+        }
+        if let Some(alias) = generate_ordinal_alias(&book) {
+            aliases.push((alias, book.clone()));
+        }
+    }
+
+    aliases
+}
+
+/// Convert Roman numeral prefix to Arabic numeral (e.g., "I Peter" -> "1 Peter")
+fn generate_arabic_alias(book: &str) -> Option<String> {
+    let replacements = [("III ", "3 "), ("II ", "2 "), ("I ", "1 ")];
+
+    for (roman, arabic) in replacements {
+        if book.starts_with(roman) {
+            return Some(book.replacen(roman, arabic, 1));
+        }
+    }
+    None
+}
+
+/// Convert Roman numeral prefix to ordinal (e.g., "I Peter" -> "1st Peter")
+fn generate_ordinal_alias(book: &str) -> Option<String> {
+    let replacements = [("III ", "3rd "), ("II ", "2nd "), ("I ", "1st ")];
+
+    for (roman, ordinal) in replacements {
+        if book.starts_with(roman) {
+            return Some(book.replacen(roman, ordinal, 1));
+        }
+    }
+    None
+}
+
 pub fn parse_verse_ranges(input: &str, max_verse: u32) -> Result<Vec<(u32, u32)>, String> {
     let input = input.trim();
     if input.is_empty() {
