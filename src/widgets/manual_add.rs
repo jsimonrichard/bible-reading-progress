@@ -450,7 +450,9 @@ impl ManualAddWidget {
                             let search_query = self.book_search.clone();
                             let new_matches = Self::compute_book_matches(bible, &search_query);
                             self.book_matches = new_matches;
-                            self.selected_book_index = 0;
+                            self.selected_book_index = self
+                                .selected_book_index
+                                .min(self.book_matches.len().saturating_sub(1));
                         }
                         Ok(ManualAddAction::None)
                     } else if self.input_focus == InputFocus::Chapter {
@@ -495,10 +497,12 @@ impl ManualAddWidget {
                     match self.input_focus {
                         InputFocus::Book => {
                             self.book_search.pop();
-                            self.selected_book_index = 0;
                             let search_query = self.book_search.clone();
                             let new_matches = Self::compute_book_matches(bible, &search_query);
                             self.book_matches = new_matches;
+                            self.selected_book_index = self
+                                .selected_book_index
+                                .min(self.book_matches.len().saturating_sub(1));
                         }
                         InputFocus::Chapter => {
                             self.chapter_input.pop();
@@ -523,10 +527,12 @@ impl ManualAddWidget {
                     match self.input_focus {
                         InputFocus::Book => {
                             self.book_search.push(c);
-                            self.selected_book_index = 0;
                             let search_query = self.book_search.clone();
                             let new_matches = Self::compute_book_matches(bible, &search_query);
                             self.book_matches = new_matches;
+                            self.selected_book_index = self
+                                .selected_book_index
+                                .min(self.book_matches.len().saturating_sub(1));
                         }
                         InputFocus::Chapter => {
                             if c.is_ascii_digit() || c == '-' {
