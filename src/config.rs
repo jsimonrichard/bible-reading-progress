@@ -21,6 +21,8 @@ impl Default for ConfigFile {
 pub struct Config {
     pub progress_path: PathBuf,
     config_file_path: PathBuf,
+    /// True when progress path was overridden in dev mode (in-repo file)
+    progress_path_overridden: bool,
 }
 
 impl Config {
@@ -51,7 +53,7 @@ impl Config {
         };
 
         // Determine progress path
-        let progress_path = if let Some(configured_path) = &config_file.progress_path {
+        let mut progress_path = if let Some(configured_path) = &config_file.progress_path {
             // Expand tilde if present
             let expanded_path = if configured_path.starts_with("~/") {
                 let home = dirs::home_dir()
@@ -74,8 +76,8 @@ impl Config {
         } else {
             // Default: use data directory for progress storage
             if cfg!(debug_assertions) {
-                // Debug/dev builds: use current directory
-                PathBuf::from("reading_progress.yaml")
+                // Debug/dev builds: use in-repo file
+                PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("reading_progress.yaml")
             } else {
                 // Release/production builds: use platform-specific directory
                 let data_dir = dirs::data_dir()
@@ -85,6 +87,12 @@ impl Config {
                     .join("reading_progress.yaml")
             }
         };
+
+        // In dev mode, always use the in-repo progress file (override config)
+        let progress_path_overridden = cfg!(debug_assertions);
+        if progress_path_overridden {
+            progress_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("reading_progress.yaml");
+        }
 
         // Determine which config file was actually used
         let config_file_path = if config_file_yaml.exists() {
@@ -98,6 +106,7 @@ impl Config {
         Ok(Self {
             progress_path,
             config_file_path,
+            progress_path_overridden,
         })
     }
 }
@@ -106,6 +115,11 @@ impl Config {
     /// Returns the path to the config file that was loaded
     pub fn config_file_path(&self) -> &PathBuf {
         &self.config_file_path
+    }
+
+    /// True when the progress path was overridden in dev mode (in-repo file used instead of config)
+    pub fn progress_path_overridden(&self) -> bool {
+        self.progress_path_overridden
     }
 
     /// Returns the absolute path to the progress file
@@ -127,7 +141,7 @@ impl Default for Config {
         Self::load().unwrap_or_else(|_| {
             // Fallback if loading fails
             let progress_path = if cfg!(debug_assertions) {
-                PathBuf::from("reading_progress.yaml")
+                PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("reading_progress.yaml")
             } else {
                 dirs::data_dir()
                     .expect("Failed to get data directory")
@@ -137,9 +151,11 @@ impl Default for Config {
             let config_file_path = dirs::config_dir()
                 .unwrap_or_else(|| PathBuf::from("."))
                 .join("bible-reading-progress.yaml");
+            let progress_path_overridden = cfg!(debug_assertions);
             Self {
                 progress_path,
                 config_file_path,
+                progress_path_overridden,
             }
         })
     }
