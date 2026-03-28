@@ -85,11 +85,7 @@ impl DashboardWidget {
             .block(
                 Block::default()
                     .borders(Borders::ALL)
-                    .title(if self.show_only_unread {
-                        "Bible Structure (Space/→: expand, ←: collapse, ↑↓: navigate, r: record, m: manual add, q: quit)"
-                    } else {
-                        "Bible Structure (Space/→: expand, ←: collapse, ↑↓: navigate, r: record, m: manual add, q: quit)"
-                    }),
+                    .title("Bible Structure (Space/→: expand, ←: collapse, ↑↓: navigate, r: record, m: manual add, q: quit)"),
             )
             .highlight_style(
                 Style::default()

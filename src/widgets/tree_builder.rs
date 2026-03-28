@@ -635,7 +635,7 @@ fn determine_book_color_from_children(
     // Check if at least one verse has read_count >= testament_min_read_count + 1
     let has_verse_one_more = all_verse_read_counts
         .iter()
-        .any(|&count| count >= testament_min_read_count + 1);
+        .any(|&count| count > testament_min_read_count);
 
     if has_verse_one_more {
         // At least one verse is one or more times greater - green
@@ -739,19 +739,17 @@ fn compute_chapter_items(
                 if current_start.is_none() {
                     current_start = Some(verse);
                 }
-            } else {
-                if let Some(start) = current_start {
-                    items.push(DashboardItem {
-                        book: book.to_string(),
-                        chapter,
-                        verse_start: start,
-                        verse_end: verse - 1,
-                        read_count: 0,
-                        last_read: None,
-                        is_read: false,
-                    });
-                    current_start = None;
-                }
+            } else if let Some(start) = current_start {
+                items.push(DashboardItem {
+                    book: book.to_string(),
+                    chapter,
+                    verse_start: start,
+                    verse_end: verse - 1,
+                    read_count: 0,
+                    last_read: None,
+                    is_read: false,
+                });
+                current_start = None;
             }
         }
         if let Some(start) = current_start {

@@ -1,0 +1,17 @@
+[package]
+versioned_files = ["Cargo.toml", "Cargo.lock"]
+changelog = "CHANGELOG.md"
+assets = "marker"
+
+[[workflows]]
+name = "document-change"
+
+[[workflows.steps]]
+type = "CreateChangeFile"
+
+[github]
+owner = "jsimonrichard"
+repo = "bible-reading-progress"
+
+[bot.releases]
+enabled = true

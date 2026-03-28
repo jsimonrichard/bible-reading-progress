@@ -51,8 +51,8 @@ where
             .next_back()
             .filter(|(_, (e, _))| *e > range.start);
         let right = self.map.range(range);
-        let iter = left.into_iter().chain(right.into_iter());
-        return iter.map(|(start, (end, value))| (start..end, value));
+        let iter = left.into_iter().chain(right);
+        iter.map(|(start, (end, value))| (start..end, value))
     }
 
     fn range_biinclusive(
@@ -65,8 +65,8 @@ where
             .next_back()
             .filter(|(_, (e, _))| e >= range.start());
         let right = self.map.range(range);
-        let iter = left.into_iter().chain(right.into_iter());
-        return iter.map(|(start, (end, value))| (start..end, value));
+        let iter = left.into_iter().chain(right);
+        iter.map(|(start, (end, value))| (start..end, value))
     }
 
     /// Insert a range with a value, splitting/merging as necessary.
@@ -109,13 +109,13 @@ where
         for (s, (e, v)) in self.map.range_mut(range.start..range.end) {
             if let Some(v2) = v.coalesce(&coalesced_value) {
                 coalesced_value = v2;
-                to_remove.push(s.clone());
+                to_remove.push(*s);
                 continue;
             }
 
             if start_cursor < *s {
                 // no overlap here
-                to_insert.push((start_cursor, (s.clone(), coalesced_value)));
+                to_insert.push((start_cursor, (*s, coalesced_value)));
                 coalesced_value = value.clone();
                 // no need to update start_cursor here
             }
@@ -160,14 +160,14 @@ where
 
             if r.start == end {
                 if let Some(v2) = v.coalesce(&curr_value) {
-                    to_remove.push(r.start.clone());
+                    to_remove.push(*r.start);
                     cursor = Some((start, r.end, v2, count + 1));
                     continue;
                 }
             }
 
             if count > 1 {
-                to_update.push((start.clone(), end.clone(), curr_value));
+                to_update.push((*start, *end, curr_value));
             }
 
             // Start a new range
@@ -176,7 +176,7 @@ where
 
         if let Some((start, end, value, count)) = cursor {
             if count > 1 {
-                to_update.push((start.clone(), end.clone(), value));
+                to_update.push((*start, *end, value));
             }
         }
 

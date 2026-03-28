@@ -159,7 +159,10 @@ fn main() -> Result<()> {
         println!("  Config file: {}", config.config_file_path().display());
         let progress_path = config.progress_path_absolute();
         if config.progress_path_overridden() {
-            println!("  Progress path: {} (overridden in dev mode)", progress_path.display());
+            println!(
+                "  Progress path: {} (overridden in dev mode)",
+                progress_path.display()
+            );
         } else {
             println!("  Progress path: {}", progress_path.display());
         }

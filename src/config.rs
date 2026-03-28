@@ -3,19 +3,11 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ConfigFile {
     /// Path where the reading progress is stored
     /// Can be absolute or relative to the config directory
     pub progress_path: Option<String>,
-}
-
-impl Default for ConfigFile {
-    fn default() -> Self {
-        Self {
-            progress_path: None,
-        }
-    }
 }
 
 pub struct Config {
@@ -54,25 +46,21 @@ impl Config {
 
         // Determine progress path
         let mut progress_path = if let Some(configured_path) = &config_file.progress_path {
-            // Expand tilde if present
-            let expanded_path = if configured_path.starts_with("~/") {
+            if let Some(stripped) = configured_path.strip_prefix("~/") {
                 let home = dirs::home_dir()
                     .ok_or_else(|| color_eyre::eyre::eyre!("Failed to get home directory"))?;
-                home.join(&configured_path[2..])
+                home.join(stripped)
             } else if configured_path == "~" {
                 dirs::home_dir()
                     .ok_or_else(|| color_eyre::eyre::eyre!("Failed to get home directory"))?
             } else {
-                // If it's an absolute path, use it directly
-                // Otherwise, treat it as relative to the config directory
                 let path = PathBuf::from(configured_path);
                 if path.is_absolute() {
                     path
                 } else {
                     config_dir.join(configured_path)
                 }
-            };
-            expanded_path
+            }
         } else {
             // Default: use data directory for progress storage
             if cfg!(debug_assertions) {

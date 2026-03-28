@@ -430,13 +430,11 @@ impl RecordWidget {
                         if self.chapter_input.trim().is_empty() {
                             self.show_confirmation = true;
                             Ok(RecordAction::None)
+                        } else if self.book_matches.is_empty() {
+                            self.error_message = Some("Please select a book first".to_string());
+                            Ok(RecordAction::None)
                         } else {
-                            if self.book_matches.is_empty() {
-                                self.error_message = Some("Please select a book first".to_string());
-                                Ok(RecordAction::None)
-                            } else {
-                                Ok(RecordAction::AddReading)
-                            }
+                            Ok(RecordAction::AddReading)
                         }
                     }
                 }

@@ -483,13 +483,11 @@ impl ManualAddWidget {
                         if self.chapter_input.trim().is_empty() {
                             self.show_confirmation = true;
                             Ok(ManualAddAction::None)
+                        } else if self.book_matches.is_empty() {
+                            self.error_message = Some("Please select a book first".to_string());
+                            Ok(ManualAddAction::None)
                         } else {
-                            if self.book_matches.is_empty() {
-                                self.error_message = Some("Please select a book first".to_string());
-                                Ok(ManualAddAction::None)
-                            } else {
-                                Ok(ManualAddAction::AddReading)
-                            }
+                            Ok(ManualAddAction::AddReading)
                         }
                     }
                 }
