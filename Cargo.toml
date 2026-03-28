@@ -1,6 +1,6 @@
 [package]
 name = "bible-reading-progress"
-version = "0.0.0"
+version = "0.1.0"
 description = "An example generated using the simple template"
 authors = ["J. Simon Richard <jsimonrichard@gmail.com>"]
 license = "MIT"
