@@ -1,5 +1,5 @@
 ---
-bible-reading-progress: major
+default: major
 ---
 
 Initial release of Bible Reading Progress Tracker (`brp`), a terminal UI for tracking Bible reading progress.
