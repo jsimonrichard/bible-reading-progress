@@ -4,26 +4,10 @@ on:
   pull_request:
     types: [closed]
     branches: [main]
-  workflow_dispatch:
 
 jobs:
-  get-tag:
-    if: (github.head_ref == 'knope/release' && github.event.pull_request.merged == true) || github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - name: Get tag of draft release
-        run: echo "tag_name=$(gh release list --repo ${{ github.repository }} --json 'isDraft,tagName' --jq '.[] | select(.isDraft) | .tagName')" >> $GITHUB_OUTPUT
-        env:
-          GH_TOKEN: ${{ github.token }}
-        id: get-tag
-    outputs:
-      tag_name: ${{ steps.get-tag.outputs.tag_name }}
-
   build-artifacts:
-    needs: [get-tag]
-    if: needs.get-tag.outputs.tag_name != ''
+    if: github.head_ref == 'release' && github.event.pull_request.merged == true
     strategy:
       fail-fast: false
       matrix:
@@ -53,8 +37,9 @@ jobs:
       - name: Install aarch64 cross-compilation tools
         if: ${{ matrix.target == 'aarch64-unknown-linux-musl' }}
         run: |
-          sudo apt-get install -y gcc-aarch64-linux-gnu musl-tools
-          echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends gcc-13-aarch64-linux-gnu musl-tools
+          echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=aarch64-linux-gnu-gcc-13" >> $GITHUB_ENV
       - name: Build
         run: cargo build --release --target ${{ matrix.target }}
       - name: Create archive
@@ -76,26 +61,29 @@ jobs:
           if-no-files-found: error
 
   release:
-    needs: [build-artifacts, get-tag]
+    needs: [build-artifacts]
+    environment: Production
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
           merge-multiple: true
-      - name: Upload artifacts and publish release
-        run: |
-          cd artifacts
-          gh release upload ${{ needs.get-tag.outputs.tag_name }} *
-          gh release edit ${{ needs.get-tag.outputs.tag_name }} --draft=false --latest
+      - name: Install Knope
+        uses: knope-dev/action@v2.1.2
+      - name: Create GitHub release and upload artifacts
+        run: knope release --verbose
         env:
           GITHUB_TOKEN: ${{ github.token }}
 
   publish-crate:
     needs: [release]
+    environment: Production
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

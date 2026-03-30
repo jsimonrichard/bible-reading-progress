@@ -1,7 +1,35 @@
 [package]
 versioned_files = ["Cargo.toml", "Cargo.lock"]
 changelog = "CHANGELOG.md"
-assets = "marker"
+assets = "artifacts/*"
+
+[[workflows]]
+name = "prepare-release"
+
+[[workflows.steps]]
+type = "Command"
+command = "git switch -C release"
+
+[[workflows.steps]]
+type = "PrepareRelease"
+
+[[workflows.steps]]
+type = "Command"
+command = "git commit -m \"chore: prepare release $version\""
+
+[[workflows.steps]]
+type = "Command"
+command = "git push --force --set-upstream origin release"
+
+[[workflows.steps]]
+type = "CreatePullRequest"
+base = "main"
+
+[workflows.steps.title]
+template = "chore: prepare release $version"
+
+[workflows.steps.body]
+template = "This PR was created by Knope. Merging it will create a new release\n\n$changelog"
 
 [[workflows]]
 name = "document-change"
@@ -13,5 +41,8 @@ type = "CreateChangeFile"
 owner = "jsimonrichard"
 repo = "bible-reading-progress"
 
-[bot.releases]
-enabled = true
+[[workflows]]
+name = "release"
+
+[[workflows.steps]]
+type = "Release"
