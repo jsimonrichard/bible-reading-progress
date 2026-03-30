@@ -1,8 +1,8 @@
----
-default: major
----
+## 0.1.0 (2026-03-30)
 
-Initial release of Bible Reading Progress Tracker (`brp`), a terminal UI for tracking Bible reading progress.
+### Breaking Changes
+
+#### Initial release of Bible Reading Progress Tracker (`brp`), a terminal UI for tracking Bible reading progress.
 
 - **Dashboard**: Tree-based view of all Bible books, chapters, and verses with read counts and last-read dates
 - **Record mode**: Interactive interface to record today's reading with fuzzy book search, chapter/verse range support
