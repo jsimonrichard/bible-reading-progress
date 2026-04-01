@@ -16,7 +16,7 @@ serde_yaml = "0.9"
 indexmap = { version = "2.0", features = ["serde"] }
 chrono = { version = "0.4", features = ["serde"] }
 fuzzy-matcher = "0.3"
-tui-tree-widget = "0.23.1"
+tui-tree-widget = "0.24.0"
 dirs = "5.0"
 clap = { version = "4.5", features = ["derive"] }
 
